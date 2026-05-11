@@ -1,0 +1,8 @@
+{
+  "relation": "NoDangerousSiteReached",
+  "class": "NormalContractPanic",
+  "reached_site_ids": [],
+  "notes": [
+    "panic observed but no dangerous site was reached"
+  ]
+}

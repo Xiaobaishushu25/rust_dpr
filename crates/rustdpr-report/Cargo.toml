@@ -1,0 +1,8 @@
+[package]
+name = "rustdpr-report"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustdpr-core = { path = "../rustdpr-core" }
+anyhow = "1"

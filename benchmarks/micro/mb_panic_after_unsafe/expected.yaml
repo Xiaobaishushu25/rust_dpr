@@ -1,0 +1,6 @@
+case_id: mb_panic_after_unsafe
+expected_class: PanicAfterUnsafe
+expected_relation: AfterUnsafe
+expected_reached_sites: 1
+notes:
+  - panic happens after unsafe block is reached

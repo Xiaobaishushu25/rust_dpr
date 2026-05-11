@@ -1,0 +1,13 @@
+[package]
+name = "rustdpr-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustdpr-core = { path = "../rustdpr-core" }
+rustdpr-analyzer = { path = "../rustdpr-analyzer" }
+rustdpr-classifier = { path = "../rustdpr-classifier" }
+rustdpr-report = { path = "../rustdpr-report" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde_json = "1"

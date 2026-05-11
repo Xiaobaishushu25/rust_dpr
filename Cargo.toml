@@ -1,0 +1,13 @@
+[workspace]
+members = [
+  "crates/rustdpr-core",
+  "crates/rustdpr-cli",
+  "crates/rustdpr-analyzer",
+  "crates/rustdpr-trace",
+  "crates/rustdpr-classifier",
+  "crates/rustdpr-report",
+  "benchmarks/micro/mb_unwrap_shallow",
+  "benchmarks/micro/mb_panic_before_unsafe",
+  "benchmarks/micro/mb_panic_after_unsafe"
+]
+resolver = "2"

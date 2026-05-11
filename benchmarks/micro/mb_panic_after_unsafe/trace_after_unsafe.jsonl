@@ -1,0 +1,2 @@
+{"Hit":{"site_id":"S0001","ts_millis":1778502028883}}
+{"Panic":{"message":"out must not be zero after unsafe write","file":"benchmarks\\micro\\mb_panic_after_unsafe\\src\\lib.rs","line":16,"ts_millis":1778502028883}}

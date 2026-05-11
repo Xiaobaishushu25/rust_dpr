@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_before_unsafe/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_unwrap_shallow/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-analyzer/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-classifier/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-report/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-trace/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

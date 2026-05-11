@@ -1,0 +1,1 @@
+{"Panic":{"message":"called `Option::unwrap()` on a `None` value","file":"benchmarks\\micro\\mb_panic_before_unsafe\\src\\lib.rs","line":5,"ts_millis":1778504198538}}

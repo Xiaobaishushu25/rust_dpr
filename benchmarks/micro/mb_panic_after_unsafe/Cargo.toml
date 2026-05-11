@@ -1,0 +1,8 @@
+[package]
+name = "mb_panic_after_unsafe"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# 关键：声明依赖本地的 rustdpr-trace crate，路径写对
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

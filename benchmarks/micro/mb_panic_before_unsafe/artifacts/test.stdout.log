@@ -1,0 +1,17 @@
+warning: both `C:\Users\Xbss\.cargo\config` and `C:\Users\Xbss\.cargo\config.toml` exist. Using `C:\Users\Xbss\.cargo\config`
+   Compiling mb_panic_before_unsafe v0.1.0 (H:\WorkSpace2\Rust\RustRover\rust-dpr\benchmarks\micro\mb_panic_before_unsafe)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running unittests src\lib.rs (H:\WorkSpace2\Rust\RustRover\rust-dpr\target\debug\deps\mb_panic_before_unsafe-85edd9c4922a8111.exe)
+
+running 2 tests
+test tests::empty_panics_before_unsafe - should panic ... ok
+test tests::non_empty_reaches_unsafe ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests mb_panic_before_unsafe
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

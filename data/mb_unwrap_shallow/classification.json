@@ -1,0 +1,11 @@
+{
+  "relation": "NoDangerousSiteReached",
+  "class": "NormalContractPanic",
+  "reached_site_ids": [],
+  "notes": [
+    "panic observed and crate has no dangerous site"
+  ],
+  "panic_message": "called `Option::unwrap()` on a `None` value",
+  "panic_file": "benchmarks\\micro\\mb_unwrap_shallow\\src\\lib.rs",
+  "panic_line": 5
+}

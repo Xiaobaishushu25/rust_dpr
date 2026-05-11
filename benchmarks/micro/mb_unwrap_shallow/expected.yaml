@@ -1,0 +1,6 @@
+case_id: mb_unwrap_shallow
+expected_class: NormalContractPanic
+expected_relation: NoDangerousSiteReached
+expected_reached_sites: 0
+notes:
+  - shallow unwrap panic without unsafe

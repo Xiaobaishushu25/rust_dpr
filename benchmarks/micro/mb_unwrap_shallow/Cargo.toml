@@ -1,0 +1,10 @@
+[package]
+name = "mb_unwrap_shallow"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# 关键：声明依赖本地的 rustdpr-trace crate，路径写对
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }
+anyhow = "1.0.102"
+serde_json = "1.0.149"
