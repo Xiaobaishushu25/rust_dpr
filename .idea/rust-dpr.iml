@@ -11,6 +11,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-report/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-trace/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

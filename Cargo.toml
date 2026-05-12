@@ -8,6 +8,9 @@ members = [
   "crates/rustdpr-report",
   "benchmarks/micro/mb_unwrap_shallow",
   "benchmarks/micro/mb_panic_before_unsafe",
-  "benchmarks/micro/mb_panic_after_unsafe"
+  "benchmarks/micro/mb_panic_after_unsafe",
+]
+exclude = [
+  "benchmarks/micro/mb_panic_after_unsafe/fuzz"
 ]
 resolver = "2"
