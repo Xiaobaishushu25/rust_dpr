@@ -8,7 +8,7 @@ members = [
   "crates/rustdpr-report",
   "benchmarks/micro/mb_unwrap_shallow",
   "benchmarks/micro/mb_panic_before_unsafe",
-  "benchmarks/micro/mb_panic_after_unsafe",
+  "benchmarks/micro/mb_panic_after_unsafe", "crates/rustdpr-oracle", "benchmarks/oracle/mb_double_free",
 ]
 exclude = [
   "benchmarks/micro/mb_panic_after_unsafe/fuzz"
