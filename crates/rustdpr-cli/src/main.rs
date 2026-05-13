@@ -66,6 +66,16 @@ enum Commands {
         #[arg(long)]
         out: PathBuf,
     },
+    OracleParse {
+        #[arg(long)]
+        asan_log: Option<PathBuf>,
+
+        #[arg(long)]
+        miri_log: Option<PathBuf>,
+
+        #[arg(long)]
+        out: PathBuf,
+    },
 }
 
 /// 主函数：解析命令行参数并执行相应的子命令
@@ -99,6 +109,32 @@ fn main() -> Result<()> {
             if let Some(parent) = out.parent() {
                 fs::create_dir_all(parent)?;
             }
+            fs::write(out, serde_json::to_vec_pretty(&result)?)?;
+        }
+
+        Commands::OracleParse {
+            asan_log,
+            miri_log,
+            out,
+        } => {
+            use rustdpr_core::model::OracleResult;
+            use rustdpr_oracle::asan::parse_asan_output;
+            use rustdpr_oracle::miri::parse_miri_output;
+
+            let mut findings = vec![];
+
+            if let Some(path) = asan_log {
+                let text = fs::read_to_string(path)?;
+                findings.extend(parse_asan_output(&text).findings);
+            }
+
+            if let Some(path) = miri_log {
+                let text = fs::read_to_string(path)?;
+                findings.extend(parse_miri_output(&text).findings);
+            }
+
+            let result = OracleResult { findings };
+
             fs::write(out, serde_json::to_vec_pretty(&result)?)?;
         }
 

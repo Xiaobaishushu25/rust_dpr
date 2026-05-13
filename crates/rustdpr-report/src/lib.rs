@@ -60,6 +60,46 @@ pub fn render_report(
     out.push_str(&format!("- Panic File: {:?}\n", result.panic_file));
     out.push_str(&format!("- Panic Line: {:?}\n", result.panic_line));
 
+    out.push_str("\n## Oracle Findings\n");
+
+    if !result.oracle_confirmed {
+        out.push_str("- none\n");
+    } else {
+        out.push_str("- oracle confirmed memory violation\n");
+
+        for finding in &result.oracle_results {
+
+            out.push_str(&format!(
+                "\n### {:?}\n",
+                finding.verdict
+            ));
+
+            out.push_str(&format!(
+                "- Message: {}\n",
+                finding.message
+            ));
+
+            if let Some(stack) = &finding.stack {
+
+                if stack.is_empty() {
+                    out.push_str("- Stack: none\n");
+                } else {
+
+                    out.push_str("- Stack:\n");
+
+                    for frame in stack {
+                        out.push_str(&format!(
+                            "  - {}\n",
+                            frame
+                        ));
+                    }
+                }
+            } else {
+                out.push_str("- Stack: none\n");
+            }
+        }
+    }
+
     out.push_str("\n## Notes\n");
     if result.notes.is_empty() {
         out.push_str("- none\n");

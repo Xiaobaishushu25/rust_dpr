@@ -174,6 +174,7 @@ pub enum CaseClass {
     HarnessMisuse,
     /// 可疑候选案例
     SuspiciousCandidate,
+    OracleConfirmedMemoryBug,
     /// 未知类型
     Unknown,
 }

@@ -254,6 +254,7 @@ dependencies = [
  "rustdpr-analyzer",
  "rustdpr-classifier",
  "rustdpr-core",
+ "rustdpr-oracle",
  "rustdpr-report",
  "serde_json",
 ]
