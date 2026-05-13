@@ -2,14 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/benchmarks/micro/mb_panic_after_unsafe" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/benchmarks/micro/mb_panic_before_unsafe" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/benchmarks/micro/mb_unwrap_shallow" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/crates/rustdpr-analyzer" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/crates/rustdpr-classifier" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/crates/rustdpr-cli" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/crates/rustdpr-core" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/crates/rustdpr-report" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/crates/rustdpr-trace" vcs="Git" />
   </component>
 </project>

@@ -192,4 +192,37 @@ pub struct ClassificationResult {
     pub panic_message: Option<String>,
     pub panic_file: Option<String>,
     pub panic_line: Option<u32>,
+    pub oracle_confirmed: bool,
+    pub oracle_results: Vec<OracleFinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OracleKind {
+    AddressSanitizer,
+    Miri,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OracleVerdict {
+    NoIssue,
+    MemoryCorruption,
+    DoubleFree,
+    UseAfterFree,
+    OutOfBounds,
+    InvalidFree,
+    UndefinedBehavior,
+    PanicOnly,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OracleFinding {
+    pub oracle: OracleKind,
+    pub verdict: OracleVerdict,
+    pub raw_message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OracleResult {
+    pub findings: Vec<OracleFinding>,
 }

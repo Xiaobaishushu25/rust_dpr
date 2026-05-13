@@ -94,5 +94,7 @@ pub fn classify(trace: &TraceLog, site_map: &SiteMap) -> ClassificationResult {
         panic_message,
         panic_file,
         panic_line,
+        oracle_confirmed: false,
+        oracle_results: vec![],
     }
 }
