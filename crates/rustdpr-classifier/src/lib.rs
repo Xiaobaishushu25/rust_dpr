@@ -1,6 +1,7 @@
 use rustdpr_core::{
-    ClassificationNotes, ClassificationResult, DangerousPathGraph, FinalClass, HarnessValidityReport,
-    OracleVerdict, PanicDangerRelation, SiteMap, TraceEvent, TraceLog, ValidityStatus,
+    ClassificationNotes, ClassificationResult, DangerousPathGraph, FinalClass,
+    HarnessValidityReport, OracleVerdict, PanicDangerRelation, SiteMap, TraceEvent, TraceLog,
+    ValidityStatus,
 };
 
 pub fn classify_execution(
@@ -39,6 +40,7 @@ pub fn classify_execution(
         notes
             .notes
             .push("Harness validity heuristics suggest likely misuse.".into());
+
         return ClassificationResult {
             final_class: FinalClass::HarnessMisuse,
             relation: PanicDangerRelation::Unknown,
@@ -104,17 +106,14 @@ pub fn classify_execution(
     }
 
     if !reached_dangerous_sites.is_empty() {
+        let nearest = reached_dangerous_sites.first().cloned();
+
         if trace.has_panic() {
             return ClassificationResult {
                 final_class: FinalClass::PanicAfterUnsafe,
                 relation: PanicDangerRelation::AfterUnsafe,
                 reached_dangerous_sites,
-                nearest_dangerous_site: Some(
-                    reached_dangerous_sites
-                        .first()
-                        .cloned()
-                        .unwrap_or_default(),
-                ),
+                nearest_dangerous_site: nearest,
                 distance_to_dangerous_site: Some(0),
                 oracle_verdict,
                 harness_status,
@@ -125,8 +124,8 @@ pub fn classify_execution(
         return ClassificationResult {
             final_class: FinalClass::DangerousPathReached,
             relation: PanicDangerRelation::NoneObserved,
-            reached_dangerous_sites: reached_dangerous_sites.clone(),
-            nearest_dangerous_site: reached_dangerous_sites.first().cloned(),
+            reached_dangerous_sites,
+            nearest_dangerous_site: nearest,
             distance_to_dangerous_site: Some(0),
             oracle_verdict,
             harness_status,
@@ -148,6 +147,7 @@ pub fn classify_execution(
         match distance.distance {
             Some(1) | Some(2) => PanicDangerRelation::AdjacentToUnsafe,
             Some(d) if d >= 3 => PanicDangerRelation::FarFromUnsafe,
+            Some(0) => PanicDangerRelation::InsideUnsafeApprox,
             _ => PanicDangerRelation::BeforeUnsafe,
         }
     } else {
@@ -158,6 +158,7 @@ pub fn classify_execution(
         match relation {
             PanicDangerRelation::AdjacentToUnsafe => FinalClass::BlockingPanic,
             PanicDangerRelation::FarFromUnsafe => FinalClass::NormalContractPanic,
+            PanicDangerRelation::InsideUnsafeApprox => FinalClass::BlockingPanic,
             PanicDangerRelation::BeforeUnsafe => FinalClass::BlockingPanic,
             _ => FinalClass::Unknown,
         }
@@ -207,7 +208,9 @@ fn infer_panic_function_hint(site_map: &SiteMap, trace: &TraceLog) -> Option<Str
             }
 
             if let Some(site) = site_map.panic_sites.iter().find(|p| {
-                p.span.file == *file && p.span.line_start.saturating_sub(2) <= line && line <= p.span.line_end + 2
+                p.span.file == *file
+                    && p.span.line_start.saturating_sub(2) <= line
+                    && line <= p.span.line_end + 2
             }) {
                 return Some(site.enclosing_fn.clone());
             }
