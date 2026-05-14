@@ -162,20 +162,27 @@ pub enum PanicRelation {
 }
 
 /// 案例分类枚举
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CaseClass {
-    /// 正常的契约 panic
+    // panic-only
     NormalContractPanic,
-    /// 阻塞性 panic（阻止了危险路径执行）
     BlockingPanic,
-    /// 危险操作后的 panic
-    PanicAfterUnsafe,
-    /// 测试工具误用
     HarnessMisuse,
-    /// 可疑候选案例
+
+    // unsafe reachable but not oracle-confirmed
+    ReachableUnsafeNoPanic,
+    PanicAfterUnsafe,
     SuspiciousCandidate,
+
+    // oracle-confirmed bug taxonomy
+    OracleConfirmedDoubleFree,
+    OracleConfirmedUseAfterFree,
+    OracleConfirmedOutOfBounds,
+    OracleConfirmedMemoryCorruption,
+    OracleConfirmedUndefinedBehavior,
     OracleConfirmedMemoryBug,
-    /// 未知类型
+
+    // fallback
     Unknown,
 }
 
@@ -195,15 +202,21 @@ pub struct ClassificationResult {
     pub panic_line: Option<u32>,
     pub oracle_confirmed: bool,
     pub oracle_results: Vec<OracleFinding>,
+    ///避免 report 里每次 reached_site_ids.is_empty() 自己推
+    pub reached_dangerous_site: bool,
+    ///明确记录是否有 panic。
+    pub panic_observed: bool,
+    ///给出这次分类落到该类的单句原因，后面 report 和调试很有用
+    pub taxonomy_reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum OracleKind {
     AddressSanitizer,
     Miri,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum OracleVerdict {
     NoIssue,
     MemoryCorruption,
@@ -229,4 +242,20 @@ pub struct OracleFinding {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OracleResult {
     pub findings: Vec<OracleFinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpectedCase {
+    pub case_id: String,
+    pub expected: ExpectedOutcome,
+    pub notes: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpectedOutcome {
+    pub class: String,
+    pub oracle_confirmed: bool,
+    pub panic_observed: bool,
+    pub reached_dangerous_site: bool,
+    pub oracle_verdicts: Option<Vec<String>>,
 }

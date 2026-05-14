@@ -15,6 +15,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-oracle/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/mb_heap_uaf/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/mb_oob_raw/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/panic_before_unsafe/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>

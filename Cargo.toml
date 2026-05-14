@@ -12,7 +12,7 @@ members = [
   "benchmarks/micro/mb_panic_after_unsafe",
   "benchmarks/oracle/mb_double_free",
   "benchmarks/oracle/mb_heap_uaf",
-  "benchmarks/oracle/mb_oob_raw",
+  "benchmarks/oracle/mb_oob_raw", "benchmarks/taxonomy/panic_before_unsafe",
 ]
 exclude = [
   "benchmarks/micro/mb_panic_after_unsafe/fuzz"

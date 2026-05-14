@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rustdpr_core::model::{ClassificationResult, OracleResult, SiteMap, TraceLog};
+use rustdpr_core::model::{CaseClass, ClassificationResult, OracleResult, SiteMap, TraceLog};
 
 pub fn render_report(
     crate_name: &str,
@@ -60,6 +60,16 @@ pub fn render_report(
     out.push_str(&format!("- Panic Message: {:?}\n", result.panic_message));
     out.push_str(&format!("- Panic File: {:?}\n", result.panic_file));
     out.push_str(&format!("- Panic Line: {:?}\n", result.panic_line));
+    out.push_str(&format!("- Panic Observed: {}\n", result.panic_observed));
+    out.push_str(&format!(
+        "- Reached Dangerous Site: {}\n",
+        result.reached_dangerous_site
+    ));
+    out.push_str(&format!("- Taxonomy Reason: {}\n", result.taxonomy_reason));
+
+    out.push_str("\n## Taxonomy Summary\n");
+    out.push_str(&format!("- Final Class: {:?}\n", result.class));
+    out.push_str(&format!("- Oracle Confirmed: {}\n", result.oracle_confirmed));
 
     out.push_str("\n## Oracle Findings\n");
     match oracle {
@@ -97,6 +107,28 @@ pub fn render_report(
             out.push_str(&format!("- {n}\n"));
         }
     }
+    out.push_str(&format!(
+        "- Description: {}\n",
+        class_description(&result.class)
+    ));
 
     Ok(out)
+}
+
+fn class_description(class: &CaseClass) -> &'static str {
+    match class {
+        CaseClass::NormalContractPanic => "panic appears to be part of normal contract enforcement",
+        CaseClass::BlockingPanic => "panic prevents dangerous path from being reached",
+        CaseClass::HarnessMisuse => "panic likely comes from test or harness misuse",
+        CaseClass::ReachableUnsafeNoPanic => "dangerous code is reachable but no panic was observed",
+        CaseClass::PanicAfterUnsafe => "panic happened after dangerous code became reachable",
+        CaseClass::SuspiciousCandidate => "dangerous code is reachable but not oracle-confirmed",
+        CaseClass::OracleConfirmedDoubleFree => "oracle confirmed double free",
+        CaseClass::OracleConfirmedUseAfterFree => "oracle confirmed use-after-free",
+        CaseClass::OracleConfirmedOutOfBounds => "oracle confirmed out-of-bounds access",
+        CaseClass::OracleConfirmedMemoryCorruption => "oracle confirmed memory corruption",
+        CaseClass::OracleConfirmedUndefinedBehavior => "oracle confirmed undefined behavior",
+        CaseClass::OracleConfirmedMemoryBug => "oracle confirmed a memory-safety bug",
+        CaseClass::Unknown => "classification is inconclusive",
+    }
 }

@@ -11,6 +11,33 @@ Oracle测试用例执行脚本
 import subprocess
 import sys
 from pathlib import Path
+import json
+import yaml
+
+def load_expected(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+def validate_classification(classification_path, expected_path):
+    actual = json.loads(classification_path.read_text(encoding="utf-8"))
+    expected = load_expected(expected_path)["expected"]
+
+    problems = []
+
+    if actual["class"] != expected["class"]:
+        problems.append(f"class mismatch: {actual['class']} != {expected['class']}")
+
+    if actual["oracle_confirmed"] != expected["oracle_confirmed"]:
+        problems.append("oracle_confirmed mismatch")
+
+    if actual["panic_observed"] != expected["panic_observed"]:
+        problems.append("panic_observed mismatch")
+
+    if actual["reached_dangerous_site"] != expected["reached_dangerous_site"]:
+        problems.append("reached_dangerous_site mismatch")
+
+    if problems:
+        raise RuntimeError("validation failed:\n- " + "\n- ".join(problems))
 
 
 def run(cmd):
@@ -82,6 +109,11 @@ def main(case_name: str):
         "--oracle", str(oracle_dir / "oracle_result.json"),
         "--out", str(data_dir / "classification.json"),
     ])
+
+    validate_classification(
+        data_dir / "classification.json",
+        case_dir / "expected.yaml",
+    )
 
     # 步骤5: 生成报告
     # 基于所有分析结果生成Markdown格式的详细报告

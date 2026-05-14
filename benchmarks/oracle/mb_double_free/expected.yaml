@@ -1,6 +1,10 @@
 case_id: mb_double_free
-expected_class: OracleConfirmedMemoryBug
-expected_relation: Unknown
-expected_reached_sites: 1
+expected:
+  class: OracleConfirmedDoubleFree
+  oracle_confirmed: true
+  panic_observed: false
+  reached_dangerous_site: true
+  oracle_verdicts:
+    - DoubleFree
 notes:
-  - oracle should confirm double-free
+  - oracle should confirm double free specifically

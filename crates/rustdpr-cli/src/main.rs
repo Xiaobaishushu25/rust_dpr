@@ -62,6 +62,10 @@ enum Commands {
         #[arg(long)]
         out: PathBuf,
     },
+    SummarizeClass {
+        #[arg(long)]
+        result: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -158,6 +162,14 @@ fn main() -> Result<()> {
                 fs::create_dir_all(parent)?;
             }
             fs::write(out, serde_json::to_vec_pretty(&oracle_result)?)?;
+        }
+        Commands::SummarizeClass { result } => {
+            let result: ClassificationResult = serde_json::from_slice(&fs::read(&result)?)?;
+            println!("class={:?}", result.class);
+            println!("oracle_confirmed={}", result.oracle_confirmed);
+            println!("panic_observed={}", result.panic_observed);
+            println!("reached_dangerous_site={}", result.reached_dangerous_site);
+            println!("taxonomy_reason={}", result.taxonomy_reason);
         }
     }
 

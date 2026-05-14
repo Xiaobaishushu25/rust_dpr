@@ -1,6 +1,10 @@
 case_id: mb_oob_raw
-expected_class: OracleConfirmedMemoryBug
-expected_relation: Unknown
-expected_reached_sites: 1
+expected:
+  class: OracleConfirmedOutOfBounds
+  oracle_confirmed: true
+  panic_observed: false
+  reached_dangerous_site: true
+  oracle_verdicts:
+    - OutOfBounds
 notes:
-  - oracle should confirm out-of-bounds memory access
+  - oracle should confirm out-of-bounds memory access specifically
