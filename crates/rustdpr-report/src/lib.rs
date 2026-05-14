@@ -1,134 +1,105 @@
-use anyhow::Result;
-use rustdpr_core::model::{CaseClass, ClassificationResult, OracleResult, SiteMap, TraceLog};
+use rustdpr_core::{ClassificationResult, SiteMap, TraceLog, TraceEvent};
 
-pub fn render_report(
-    crate_name: &str,
+pub fn render_markdown_report(
     site_map: &SiteMap,
     trace: &TraceLog,
     result: &ClassificationResult,
-    oracle: Option<&OracleResult>,
-) -> Result<String> {
+) -> String {
     let mut out = String::new();
 
-    out.push_str(&format!("# RustDPR Report: {crate_name}\n\n"));
+    out.push_str("# RustDPR Report\n\n");
 
-    out.push_str("## Dangerous Sites\n");
+    out.push_str("## Summary\n\n");
+    out.push_str(&format!("- Final Class: {:?}\n", result.final_class));
+    out.push_str(&format!("- Relation: {:?}\n", result.relation));
+    out.push_str(&format!(
+        "- Reached Dangerous Sites: {:?}\n",
+        result.reached_dangerous_sites
+    ));
+    out.push_str(&format!(
+        "- Nearest Dangerous Site: {:?}\n",
+        result.nearest_dangerous_site
+    ));
+    out.push_str(&format!(
+        "- Distance to Dangerous Site: {:?}\n",
+        result.distance_to_dangerous_site
+    ));
+    out.push_str(&format!("- Oracle Verdict: {:?}\n", result.oracle_verdict));
+    out.push_str(&format!("- Harness Status: {:?}\n", result.harness_status));
+    out.push('\n');
+
+    out.push_str("## Dangerous Sites\n\n");
     if site_map.dangerous_sites.is_empty() {
-        out.push_str("- none\n");
+        out.push_str("- None\n\n");
     } else {
         for s in &site_map.dangerous_sites {
             out.push_str(&format!(
-                "- {} {:?} {}:{}-{}\n",
+                "- {} {:?} in `{}` at {}:{}-{}\n",
                 s.site_id,
                 s.kind,
-                s.span.file.display(),
+                s.enclosing_fn,
+                s.span.file,
                 s.span.line_start,
                 s.span.line_end
             ));
         }
+        out.push('\n');
     }
 
-    out.push_str("\n## Panic Sites\n");
+    out.push_str("## Panic Sites\n\n");
     if site_map.panic_sites.is_empty() {
-        out.push_str("- none\n");
+        out.push_str("- None\n\n");
     } else {
         for p in &site_map.panic_sites {
             out.push_str(&format!(
-                "- {} {:?} {}:{}-{}\n",
+                "- {} {:?} in `{}` at {}:{}-{}\n",
                 p.panic_id,
                 p.kind,
-                p.span.file.display(),
+                p.enclosing_fn,
+                p.span.file,
                 p.span.line_start,
                 p.span.line_end
             ));
         }
+        out.push('\n');
     }
 
-    out.push_str("\n## Trace Events\n");
+    out.push_str("## Trace Events\n\n");
     if trace.events.is_empty() {
-        out.push_str("- none\n");
+        out.push_str("- None\n\n");
     } else {
         for e in &trace.events {
-            out.push_str(&format!("- {:?}\n", e));
-        }
-    }
-
-    out.push_str("\n## Classification\n");
-    out.push_str(&format!("- Relation: {:?}\n", result.relation));
-    out.push_str(&format!("- Class: {:?}\n", result.class));
-    out.push_str(&format!("- Reached Sites: {:?}\n", result.reached_site_ids));
-    out.push_str(&format!("- Panic Message: {:?}\n", result.panic_message));
-    out.push_str(&format!("- Panic File: {:?}\n", result.panic_file));
-    out.push_str(&format!("- Panic Line: {:?}\n", result.panic_line));
-    out.push_str(&format!("- Panic Observed: {}\n", result.panic_observed));
-    out.push_str(&format!(
-        "- Reached Dangerous Site: {}\n",
-        result.reached_dangerous_site
-    ));
-    out.push_str(&format!("- Taxonomy Reason: {}\n", result.taxonomy_reason));
-
-    out.push_str("\n## Taxonomy Summary\n");
-    out.push_str(&format!("- Final Class: {:?}\n", result.class));
-    out.push_str(&format!("- Oracle Confirmed: {}\n", result.oracle_confirmed));
-
-    out.push_str("\n## Oracle Findings\n");
-    match oracle {
-        Some(oracle_result) if !oracle_result.findings.is_empty() => {
-            for finding in &oracle_result.findings {
-                out.push_str(&format!("\n### {:?} / {:?}\n", finding.oracle, finding.verdict));
-                out.push_str(&format!("- Message: {}\n", finding.message));
-                if let Some(location) = &finding.location {
-                    out.push_str(&format!("- Location: {}\n", location));
+            match e {
+                TraceEvent::Hit { site_id, ts_millis } => {
+                    out.push_str(&format!("- HIT {} at {} ms\n", site_id, ts_millis));
                 }
-                if let Some(stack) = &finding.stack {
-                    if stack.is_empty() {
-                        out.push_str("- Stack: none\n");
-                    } else {
-                        out.push_str("- Stack:\n");
-                        for frame in stack {
-                            out.push_str(&format!("  - {}\n", frame));
-                        }
-                    }
-                } else {
-                    out.push_str("- Stack: none\n");
+                TraceEvent::Panic {
+                    message,
+                    file,
+                    line,
+                    ts_millis,
+                } => {
+                    out.push_str(&format!(
+                        "- PANIC at {} ms, file={:?}, line={:?}, message={:?}\n",
+                        ts_millis, file, line, message
+                    ));
                 }
             }
         }
-        _ => {
-            out.push_str("- none\n");
-        }
+        out.push('\n');
     }
 
-    out.push_str("\n## Notes\n");
-    if result.notes.is_empty() {
-        out.push_str("- none\n");
+    out.push_str("## Notes\n\n");
+    if result.notes.notes.is_empty() && result.notes.counters.is_empty() {
+        out.push_str("- None\n");
     } else {
-        for n in &result.notes {
-            out.push_str(&format!("- {n}\n"));
+        for n in &result.notes.notes {
+            out.push_str(&format!("- {}\n", n));
+        }
+        for (k, v) in &result.notes.counters {
+            out.push_str(&format!("- {}: {}\n", k, v));
         }
     }
-    out.push_str(&format!(
-        "- Description: {}\n",
-        class_description(&result.class)
-    ));
 
-    Ok(out)
-}
-
-fn class_description(class: &CaseClass) -> &'static str {
-    match class {
-        CaseClass::NormalContractPanic => "panic appears to be part of normal contract enforcement",
-        CaseClass::BlockingPanic => "panic prevents dangerous path from being reached",
-        CaseClass::HarnessMisuse => "panic likely comes from test or harness misuse",
-        CaseClass::ReachableUnsafeNoPanic => "dangerous code is reachable but no panic was observed",
-        CaseClass::PanicAfterUnsafe => "panic happened after dangerous code became reachable",
-        CaseClass::SuspiciousCandidate => "dangerous code is reachable but not oracle-confirmed",
-        CaseClass::OracleConfirmedDoubleFree => "oracle confirmed double free",
-        CaseClass::OracleConfirmedUseAfterFree => "oracle confirmed use-after-free",
-        CaseClass::OracleConfirmedOutOfBounds => "oracle confirmed out-of-bounds access",
-        CaseClass::OracleConfirmedMemoryCorruption => "oracle confirmed memory corruption",
-        CaseClass::OracleConfirmedUndefinedBehavior => "oracle confirmed undefined behavior",
-        CaseClass::OracleConfirmedMemoryBug => "oracle confirmed a memory-safety bug",
-        CaseClass::Unknown => "classification is inconclusive",
-    }
+    out
 }

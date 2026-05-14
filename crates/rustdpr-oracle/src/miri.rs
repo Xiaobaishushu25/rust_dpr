@@ -1,39 +1,19 @@
-use rustdpr_core::model::{OracleFinding, OracleKind, OracleResult, OracleVerdict};
+use rustdpr_core::OracleVerdict;
 
-pub fn parse_miri_output(output: &str) -> OracleResult {
-    let mut findings = Vec::new();
+pub fn parse_miri_output(text: &str) -> Option<OracleVerdict> {
+    let lower = text.to_ascii_lowercase();
 
-    let lower = output.to_lowercase();
-
-    let verdict = if lower.contains("undefined behavior") || lower.contains("ub") {
-        Some(OracleVerdict::UndefinedBehavior)
-    } else if lower.contains("out-of-bounds")
-        || lower.contains("out of bounds")
-        || lower.contains("pointer to alloc")
-        || lower.contains("memory access failed")
-    {
-        Some(OracleVerdict::OutOfBounds)
-    } else if lower.contains("dangling")
-        || lower.contains("use after free")
+    if lower.contains("undefined behavior")
+        || lower.contains("is undefined behavior")
+        || lower.contains("type validation failed")
+        || lower.contains("dangling")
+        || lower.contains("out-of-bounds")
         || lower.contains("use-after-free")
     {
-        Some(OracleVerdict::UseAfterFree)
-    } else {
-        None
-    };
-
-    if let Some(verdict) = verdict {
-        findings.push(OracleFinding {
-            oracle: OracleKind::Miri,
-            verdict,
-            message: first_summary_line(output),
-            stack: extract_stack_frames(output),
-            location: extract_primary_location(output),
-            raw_message: output.to_string(),
-        });
+        return Some(OracleVerdict::MiriUndefinedBehavior);
     }
 
-    OracleResult { findings }
+    None
 }
 
 fn first_summary_line(output: &str) -> String {

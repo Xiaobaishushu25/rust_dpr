@@ -1,48 +1,25 @@
-use rustdpr_core::model::{OracleFinding, OracleKind, OracleResult, OracleVerdict};
+use rustdpr_core::OracleVerdict;
 
-pub fn parse_asan_output(output: &str) -> OracleResult {
-    let mut findings = Vec::new();
+pub fn parse_asan_output(text: &str) -> Option<OracleVerdict> {
+    let lower = text.to_ascii_lowercase();
 
-    let lower = output.to_lowercase();
-
-    let verdict = if lower.contains("attempting double-free")
-        || lower.contains("double-free")
-        || lower.contains("double free")
-    {
-        Some(OracleVerdict::DoubleFree)
-    } else if lower.contains("heap-use-after-free")
-        || lower.contains("use-after-free")
-        || lower.contains("use after free")
-    {
-        Some(OracleVerdict::UseAfterFree)
-    } else if lower.contains("heap-buffer-overflow")
-        || lower.contains("stack-buffer-overflow")
-        || lower.contains("global-buffer-overflow")
-        || lower.contains("out-of-bounds")
-        || lower.contains("out of bounds")
-    {
-        Some(OracleVerdict::OutOfBounds)
-    } else if lower.contains("addresssanitizer")
-        || lower.contains("sanitizer")
-        || lower.contains("memory corruption")
-    {
-        Some(OracleVerdict::MemoryCorruption)
-    } else {
-        None
-    };
-
-    if let Some(verdict) = verdict {
-        findings.push(OracleFinding {
-            oracle: OracleKind::AddressSanitizer,
-            verdict,
-            message: first_summary_line(output),
-            stack: extract_stack_frames(output),
-            location: extract_primary_location(output),
-            raw_message: output.to_string(),
-        });
+    if lower.contains("double-free") || lower.contains("attempting double-free") {
+        return Some(OracleVerdict::AddressSanitizerDoubleFree);
     }
 
-    OracleResult { findings }
+    if lower.contains("heap-use-after-free") || lower.contains("use-after-free") {
+        return Some(OracleVerdict::AddressSanitizerUseAfterFree);
+    }
+
+    if lower.contains("out-of-bounds")
+        || lower.contains("heap-buffer-overflow")
+        || lower.contains("stack-buffer-overflow")
+        || lower.contains("global-buffer-overflow")
+    {
+        return Some(OracleVerdict::AddressSanitizerOutOfBounds);
+    }
+
+    None
 }
 
 fn first_summary_line(output: &str) -> String {
