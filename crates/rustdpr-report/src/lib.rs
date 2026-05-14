@@ -1,11 +1,12 @@
 use anyhow::Result;
-use rustdpr_core::model::{ClassificationResult, SiteMap, TraceLog};
+use rustdpr_core::model::{ClassificationResult, OracleResult, SiteMap, TraceLog};
 
 pub fn render_report(
     crate_name: &str,
     site_map: &SiteMap,
     trace: &TraceLog,
     result: &ClassificationResult,
+    oracle: Option<&OracleResult>,
 ) -> Result<String> {
     let mut out = String::new();
 
@@ -61,42 +62,30 @@ pub fn render_report(
     out.push_str(&format!("- Panic Line: {:?}\n", result.panic_line));
 
     out.push_str("\n## Oracle Findings\n");
-
-    if !result.oracle_confirmed {
-        out.push_str("- none\n");
-    } else {
-        out.push_str("- oracle confirmed memory violation\n");
-
-        for finding in &result.oracle_results {
-
-            out.push_str(&format!(
-                "\n### {:?}\n",
-                finding.verdict
-            ));
-
-            out.push_str(&format!(
-                "- Message: {}\n",
-                finding.message
-            ));
-
-            if let Some(stack) = &finding.stack {
-
-                if stack.is_empty() {
-                    out.push_str("- Stack: none\n");
-                } else {
-
-                    out.push_str("- Stack:\n");
-
-                    for frame in stack {
-                        out.push_str(&format!(
-                            "  - {}\n",
-                            frame
-                        ));
-                    }
+    match oracle {
+        Some(oracle_result) if !oracle_result.findings.is_empty() => {
+            for finding in &oracle_result.findings {
+                out.push_str(&format!("\n### {:?} / {:?}\n", finding.oracle, finding.verdict));
+                out.push_str(&format!("- Message: {}\n", finding.message));
+                if let Some(location) = &finding.location {
+                    out.push_str(&format!("- Location: {}\n", location));
                 }
-            } else {
-                out.push_str("- Stack: none\n");
+                if let Some(stack) = &finding.stack {
+                    if stack.is_empty() {
+                        out.push_str("- Stack: none\n");
+                    } else {
+                        out.push_str("- Stack:\n");
+                        for frame in stack {
+                            out.push_str(&format!("  - {}\n", frame));
+                        }
+                    }
+                } else {
+                    out.push_str("- Stack: none\n");
+                }
             }
+        }
+        _ => {
+            out.push_str("- none\n");
         }
     }
 

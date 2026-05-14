@@ -162,6 +162,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mb_heap_uaf"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_oob_raw"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "mb_panic_after_unsafe"
 version = "0.1.0"
 dependencies = [

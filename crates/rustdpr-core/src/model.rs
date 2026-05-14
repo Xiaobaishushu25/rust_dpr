@@ -220,6 +220,9 @@ pub enum OracleVerdict {
 pub struct OracleFinding {
     pub oracle: OracleKind,
     pub verdict: OracleVerdict,
+    pub message: String,
+    pub stack: Option<Vec<String>>,
+    pub location: Option<String>,
     pub raw_message: String,
 }
 
