@@ -277,6 +277,7 @@ dependencies = [
  "rustdpr-core",
  "rustdpr-oracle",
  "rustdpr-report",
+ "serde",
  "serde_json",
 ]
 

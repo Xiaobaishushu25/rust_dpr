@@ -1,18 +1,16 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use rustdpr_analyzer::metadata::collect_metadata;
-use rustdpr_analyzer::site_locator::build_site_map;
-use rustdpr_classifier::{classify, load_trace};
-use rustdpr_core::model::{ClassificationResult, OracleResult, SiteMap, TraceLog};
-use rustdpr_oracle::{parse_asan_output, parse_miri_output};
-use rustdpr_report::render_report;
+use rustdpr_analyzer::{analyze_crate, analyze_harness_validity, build_dpg};
+use rustdpr_classifier::classify_execution;
+use rustdpr_core::{
+    DangerousPathGraph, HarnessValidityReport, OracleVerdict, SiteMap, TraceEvent, TraceLog,
+};
 use std::fs;
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "rustdpr")]
-#[command(version)]
-#[command(about = "Rust Dangerous Path Reachability MVP")]
+#[command(about = "Rust Dangerous Path Reachability prototype CLI")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -20,51 +18,45 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Collect {
+    AnalyzeSites {
         #[arg(long)]
-        crate_dir: PathBuf,
+        crate_root: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        function_index_out: Option<PathBuf>,
+    },
+    BuildDpg {
+        #[arg(long)]
+        crate_root: PathBuf,
         #[arg(long)]
         out: PathBuf,
     },
-    AnalyzeSites {
+    ValidateHarness {
         #[arg(long)]
-        crate_dir: PathBuf,
+        harness: PathBuf,
         #[arg(long)]
         out: PathBuf,
+    },
+    Distance {
+        #[arg(long)]
+        dpg: PathBuf,
+        #[arg(long)]
+        from: String,
     },
     Classify {
         #[arg(long)]
-        trace: PathBuf,
-        #[arg(long)]
         site_map: PathBuf,
-        #[arg(long)]
-        oracle: Option<PathBuf>,
-        #[arg(long)]
-        out: PathBuf,
-    },
-    Report {
         #[arg(long)]
         trace: PathBuf,
         #[arg(long)]
-        site_map: PathBuf,
+        dpg: PathBuf,
         #[arg(long)]
-        result: PathBuf,
+        harness_validity: Option<PathBuf>,
         #[arg(long)]
-        oracle: Option<PathBuf>,
+        oracle: Option<String>,
         #[arg(long)]
-        out: PathBuf,
-    },
-    OracleParse {
-        #[arg(long)]
-        asan_log: Option<PathBuf>,
-        #[arg(long)]
-        miri_log: Option<PathBuf>,
-        #[arg(long)]
-        out: PathBuf,
-    },
-    SummarizeClass {
-        #[arg(long)]
-        result: PathBuf,
+        out: Option<PathBuf>,
     },
 }
 
@@ -72,106 +64,119 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Collect { crate_dir, out } => {
-            let meta = collect_metadata(&crate_dir)?;
-            if let Some(parent) = out.parent() {
-                fs::create_dir_all(parent)?;
+        Commands::AnalyzeSites {
+            crate_root,
+            out,
+            function_index_out,
+        } => {
+            let (site_map, function_index) = analyze_crate(&crate_root)?;
+            write_json(&out, &site_map)?;
+            if let Some(idx_out) = function_index_out {
+                write_json(&idx_out, &function_index)?;
             }
-            fs::write(out, serde_json::to_vec_pretty(&meta)?)?;
         }
 
-        Commands::AnalyzeSites { crate_dir, out } => {
-            let meta = collect_metadata(&crate_dir)?;
-            let site_map = build_site_map(&crate_dir, meta.name)?;
-            if let Some(parent) = out.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(out, serde_json::to_vec_pretty(&site_map)?)?;
+        Commands::BuildDpg { crate_root, out } => {
+            let (site_map, function_index) = analyze_crate(&crate_root)?;
+            let dpg = build_dpg(&site_map, &function_index);
+            write_json(&out, &dpg)?;
+        }
+
+        Commands::ValidateHarness { harness, out } => {
+            let report = analyze_harness_validity(&harness)?;
+            write_json(&out, &report)?;
+        }
+
+        Commands::Distance { dpg, from } => {
+            let dpg: DangerousPathGraph = read_json(&dpg)?;
+            let result = dpg.shortest_distance_to_any_dangerous_site(&from);
+            println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
         Commands::Classify {
-            trace,
             site_map,
+            trace,
+            dpg,
+            harness_validity,
             oracle,
             out,
         } => {
-            let trace_log = load_trace(&trace)?;
-            let site_map: SiteMap = serde_json::from_slice(&fs::read(&site_map)?)?;
+            let site_map: SiteMap = read_json(&site_map)?;
+            let trace = read_trace_jsonl(&trace)?;
+            let dpg: DangerousPathGraph = read_json(&dpg)?;
 
-            let oracle_result: Option<OracleResult> = if let Some(path) = oracle {
-                Some(serde_json::from_slice(&fs::read(path)?)?)
-            } else {
-                None
+            let harness: Option<HarnessValidityReport> = match harness_validity {
+                Some(path) => Some(read_json(&path)?),
+                None => None,
             };
 
-            let result = classify(&trace_log, &site_map, oracle_result.as_ref());
+            let oracle = oracle
+                .as_deref()
+                .map(parse_oracle_verdict)
+                .transpose()?
+                .unwrap_or(OracleVerdict::Unknown);
 
-            if let Some(parent) = out.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(out, serde_json::to_vec_pretty(&result)?)?;
-        }
-
-        Commands::Report {
-            trace,
-            site_map,
-            result,
-            oracle,
-            out,
-        } => {
-            let trace: TraceLog = load_trace(&trace)?;
-            let site_map: SiteMap = serde_json::from_slice(&fs::read(&site_map)?)?;
-            let result: ClassificationResult = serde_json::from_slice(&fs::read(&result)?)?;
-
-            let oracle_result: Option<OracleResult> = if let Some(path) = oracle {
-                Some(serde_json::from_slice(&fs::read(path)?)?)
-            } else {
-                None
-            };
-
-            let md = render_report(
-                &site_map.crate_name,
+            let result = classify_execution(
                 &site_map,
                 &trace,
-                &result,
-                oracle_result.as_ref(),
-            )?;
+                &dpg,
+                harness.as_ref(),
+                Some(oracle),
+            );
 
-            if let Some(parent) = out.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(out, md)?;
-        }
-
-        Commands::OracleParse {
-            asan_log,
-            miri_log,
-            out,
-        } => {
-            let oracle_result = if let Some(path) = asan_log {
-                let content = fs::read_to_string(path)?;
-                parse_asan_output(&content)
-            } else if let Some(path) = miri_log {
-                let content = fs::read_to_string(path)?;
-                parse_miri_output(&content)
+            if let Some(out_path) = out {
+                write_json(&out_path, &result)?;
             } else {
-                OracleResult { findings: vec![] }
-            };
-
-            if let Some(parent) = out.parent() {
-                fs::create_dir_all(parent)?;
+                println!("{}", serde_json::to_string_pretty(&result)?);
             }
-            fs::write(out, serde_json::to_vec_pretty(&oracle_result)?)?;
-        }
-        Commands::SummarizeClass { result } => {
-            let result: ClassificationResult = serde_json::from_slice(&fs::read(&result)?)?;
-            println!("class={:?}", result.class);
-            println!("oracle_confirmed={}", result.oracle_confirmed);
-            println!("panic_observed={}", result.panic_observed);
-            println!("reached_dangerous_site={}", result.reached_dangerous_site);
-            println!("taxonomy_reason={}", result.taxonomy_reason);
         }
     }
 
     Ok(())
+}
+
+fn write_json<T: serde::Serialize>(path: &PathBuf, value: &T) -> Result<()> {
+    let parent = path
+        .parent()
+        .context("output path has no parent directory")?;
+    fs::create_dir_all(parent)?;
+    fs::write(path, serde_json::to_string_pretty(value)?)?;
+    Ok(())
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(path: &PathBuf) -> Result<T> {
+    let content = fs::read_to_string(path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    let value = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse JSON {}", path.display()))?;
+    Ok(value)
+}
+
+fn read_trace_jsonl(path: &PathBuf) -> Result<TraceLog> {
+    let content = fs::read_to_string(path)
+        .with_context(|| format!("failed to read trace {}", path.display()))?;
+
+    let mut events = Vec::new();
+    for (idx, line) in content.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let event: TraceEvent = serde_json::from_str(line)
+            .with_context(|| format!("invalid trace JSONL at line {}", idx + 1))?;
+        events.push(event);
+    }
+
+    Ok(TraceLog { events })
+}
+
+fn parse_oracle_verdict(s: &str) -> Result<OracleVerdict> {
+    let v = match s {
+        "unknown" => OracleVerdict::Unknown,
+        "asan-double-free" => OracleVerdict::AddressSanitizerDoubleFree,
+        "asan-uaf" => OracleVerdict::AddressSanitizerUseAfterFree,
+        "asan-oob" => OracleVerdict::AddressSanitizerOutOfBounds,
+        "miri-ub" => OracleVerdict::MiriUndefinedBehavior,
+        _ => anyhow::bail!("unknown oracle verdict: {s}"),
+    };
+    Ok(v)
 }

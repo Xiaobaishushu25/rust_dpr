@@ -1,175 +1,219 @@
-use anyhow::Result;
-use rustdpr_core::model::{CaseClass, ClassificationResult, OracleResult, OracleVerdict, PanicRelation, SiteMap, TraceEvent, TraceLog};
-use std::fs;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
+use rustdpr_core::{
+    ClassificationNotes, ClassificationResult, DangerousPathGraph, FinalClass, HarnessValidityReport,
+    OracleVerdict, PanicDangerRelation, SiteMap, TraceEvent, TraceLog, ValidityStatus,
+};
 
-fn oracle_verdict_to_case_class(verdict: &OracleVerdict) -> Option<CaseClass> {
-    match verdict {
-        OracleVerdict::DoubleFree => Some(CaseClass::OracleConfirmedDoubleFree),
-        OracleVerdict::UseAfterFree => Some(CaseClass::OracleConfirmedUseAfterFree),
-        OracleVerdict::OutOfBounds => Some(CaseClass::OracleConfirmedOutOfBounds),
-        OracleVerdict::MemoryCorruption => Some(CaseClass::OracleConfirmedMemoryCorruption),
-        OracleVerdict::UndefinedBehavior => Some(CaseClass::OracleConfirmedUndefinedBehavior),
-        OracleVerdict::InvalidFree => Some(CaseClass::OracleConfirmedMemoryBug),
-        _ => None,
-    }
-}
-
-fn strongest_oracle_case(findings: &[rustdpr_core::model::OracleFinding]) -> Option<CaseClass> {
-    for verdict in [
-        OracleVerdict::DoubleFree,
-        OracleVerdict::UseAfterFree,
-        OracleVerdict::OutOfBounds,
-        OracleVerdict::MemoryCorruption,
-        OracleVerdict::UndefinedBehavior,
-        OracleVerdict::InvalidFree,
-    ] {
-        if findings.iter().any(|f| f.verdict == verdict) {
-            return oracle_verdict_to_case_class(&verdict);
-        }
-    }
-    None
-}
-
-pub fn load_trace(path: &Path) -> Result<TraceLog> {
-    let f = fs::File::open(path)?;
-    let reader = BufReader::new(f);
-    let mut events = Vec::new();
-
-    for line in reader.lines() {
-        let line = line?;
-        let ev: TraceEvent = serde_json::from_str(&line)?;
-        events.push(ev);
-    }
-
-    Ok(TraceLog { events })
-}
-
-
-/**
-为什么这里引入 ReachableUnsafeNoPanic 又还保留 SuspiciousCandidate
-因为它们用途不同：
-ReachableUnsafeNoPanic：启发式观察结果
-SuspiciousCandidate：最终对外标签，表示“危险已达但未证实”
-这版逻辑里，先得到启发式类；如果没有 panic 且 hit 了 dangerous site：
-有 oracle 且 oracle 没证实 → SuspiciousCandidate
-没有 oracle → 也落到 SuspiciousCandidate
-这样对外分类更稳定，但你仍然保留了中间语义到
-**/
-pub fn classify(
-    trace: &TraceLog,
+pub fn classify_execution(
     site_map: &SiteMap,
-    oracle: Option<&OracleResult>,
+    trace: &TraceLog,
+    dpg: &DangerousPathGraph,
+    harness: Option<&HarnessValidityReport>,
+    oracle: Option<OracleVerdict>,
 ) -> ClassificationResult {
-    let mut reached = Vec::new();
-    let mut panic_message = None;
-    let mut panic_file = None;
-    let mut panic_line = None;
-    let mut panic_seen = false;
+    let harness_status = harness
+        .map(|h| h.status.clone())
+        .unwrap_or(ValidityStatus::Unknown);
 
-    for ev in &trace.events {
-        match ev {
-            TraceEvent::Hit { site_id, .. } => {
-                reached.push(site_id.clone());
-            }
-            TraceEvent::Panic {
-                message,
-                file,
-                line,
-                ..
-            } => {
-                panic_seen = true;
-                if panic_message.is_none() {
-                    panic_message = message.clone();
-                }
-                if panic_file.is_none() {
-                    panic_file = file.clone();
-                }
-                if panic_line.is_none() {
-                    panic_line = *line;
-                }
-            }
-        }
+    let oracle_verdict = oracle.unwrap_or(OracleVerdict::Unknown);
+
+    let mut notes = ClassificationNotes::default();
+
+    let reached_dangerous_sites: Vec<String> = trace
+        .hit_site_ids()
+        .into_iter()
+        .filter(|hit| site_map.dangerous_sites.iter().any(|s| s.site_id == *hit))
+        .map(|s| s.to_string())
+        .collect();
+
+    if !reached_dangerous_sites.is_empty() {
+        notes
+            .counters
+            .insert("reached_dangerous_sites".into(), reached_dangerous_sites.len());
+        notes.notes.push(format!(
+            "Reached dangerous sites: {}",
+            reached_dangerous_sites.join(", ")
+        ));
     }
 
-    let reached_dangerous_site = !reached.is_empty();
-    let has_dangerous_sites = !site_map.dangerous_sites.is_empty();
-
-    let (relation, mut class, mut notes, mut taxonomy_reason) =
-        if panic_seen && !reached_dangerous_site && !has_dangerous_sites {
-            (
-                PanicRelation::NoDangerousSiteReached,
-                CaseClass::NormalContractPanic,
-                vec!["panic observed and crate has no dangerous site".to_string()],
-                "panic observed, and no dangerous site exists in the site map".to_string(),
-            )
-        } else if panic_seen && !reached_dangerous_site && has_dangerous_sites {
-            (
-                PanicRelation::NoDangerousSiteReached,
-                CaseClass::BlockingPanic,
-                vec!["panic observed before any dangerous site was reached".to_string()],
-                "panic observed before any dangerous site was reached".to_string(),
-            )
-        } else if panic_seen && reached_dangerous_site {
-            (
-                PanicRelation::AfterUnsafe,
-                CaseClass::PanicAfterUnsafe,
-                vec!["dangerous site reached before panic".to_string()],
-                "dangerous site was reached and panic was later observed".to_string(),
-            )
-        } else if !panic_seen && reached_dangerous_site {
-            (
-                PanicRelation::Unknown,
-                CaseClass::ReachableUnsafeNoPanic,
-                vec!["dangerous site reached without panic".to_string()],
-                "dangerous site was reached but no panic was observed".to_string(),
-            )
-        } else {
-            (
-                PanicRelation::Unknown,
-                CaseClass::Unknown,
-                vec!["no panic and no dangerous site hit".to_string()],
-                "no panic observed and no dangerous site reached".to_string(),
-            )
+    if harness_status == ValidityStatus::LikelyMisuse {
+        notes
+            .notes
+            .push("Harness validity heuristics suggest likely misuse.".into());
+        return ClassificationResult {
+            final_class: FinalClass::HarnessMisuse,
+            relation: PanicDangerRelation::Unknown,
+            reached_dangerous_sites,
+            nearest_dangerous_site: None,
+            distance_to_dangerous_site: None,
+            oracle_verdict,
+            harness_status,
+            notes,
         };
-
-    let mut oracle_confirmed = false;
-    let mut oracle_results = vec![];
-
-    if let Some(o) = oracle {
-        oracle_results.extend(o.findings.clone());
-
-        if let Some(oracle_case) = strongest_oracle_case(&o.findings) {
-            oracle_confirmed = true;
-            class = oracle_case;
-            taxonomy_reason = "oracle confirmed a concrete memory-safety violation".to_string();
-            notes.push("oracle confirmed memory safety violation".to_string());
-        } else if !panic_seen && reached_dangerous_site {
-            class = CaseClass::SuspiciousCandidate;
-            taxonomy_reason =
-                "dangerous site reached without panic, but oracle did not confirm a concrete bug"
-                    .to_string();
-            notes.push("oracle did not confirm a concrete bug".to_string());
-        }
-    } else if !panic_seen && reached_dangerous_site {
-        class = CaseClass::SuspiciousCandidate;
-        taxonomy_reason =
-            "dangerous site reached without panic and no oracle evidence was provided".to_string();
     }
+
+    match oracle_verdict {
+        OracleVerdict::AddressSanitizerDoubleFree => {
+            return ClassificationResult {
+                final_class: FinalClass::OracleConfirmedDoubleFree,
+                relation: relation_from_trace(&reached_dangerous_sites, trace),
+                reached_dangerous_sites,
+                nearest_dangerous_site: None,
+                distance_to_dangerous_site: Some(0),
+                oracle_verdict,
+                harness_status,
+                notes,
+            };
+        }
+        OracleVerdict::AddressSanitizerUseAfterFree => {
+            return ClassificationResult {
+                final_class: FinalClass::OracleConfirmedUseAfterFree,
+                relation: relation_from_trace(&reached_dangerous_sites, trace),
+                reached_dangerous_sites,
+                nearest_dangerous_site: None,
+                distance_to_dangerous_site: Some(0),
+                oracle_verdict,
+                harness_status,
+                notes,
+            };
+        }
+        OracleVerdict::AddressSanitizerOutOfBounds => {
+            return ClassificationResult {
+                final_class: FinalClass::OracleConfirmedOutOfBounds,
+                relation: relation_from_trace(&reached_dangerous_sites, trace),
+                reached_dangerous_sites,
+                nearest_dangerous_site: None,
+                distance_to_dangerous_site: Some(0),
+                oracle_verdict,
+                harness_status,
+                notes,
+            };
+        }
+        OracleVerdict::MiriUndefinedBehavior => {
+            return ClassificationResult {
+                final_class: FinalClass::OracleConfirmedUb,
+                relation: relation_from_trace(&reached_dangerous_sites, trace),
+                reached_dangerous_sites,
+                nearest_dangerous_site: None,
+                distance_to_dangerous_site: Some(0),
+                oracle_verdict,
+                harness_status,
+                notes,
+            };
+        }
+        OracleVerdict::Unknown => {}
+    }
+
+    if !reached_dangerous_sites.is_empty() {
+        if trace.has_panic() {
+            return ClassificationResult {
+                final_class: FinalClass::PanicAfterUnsafe,
+                relation: PanicDangerRelation::AfterUnsafe,
+                reached_dangerous_sites,
+                nearest_dangerous_site: Some(
+                    reached_dangerous_sites
+                        .first()
+                        .cloned()
+                        .unwrap_or_default(),
+                ),
+                distance_to_dangerous_site: Some(0),
+                oracle_verdict,
+                harness_status,
+                notes,
+            };
+        }
+
+        return ClassificationResult {
+            final_class: FinalClass::DangerousPathReached,
+            relation: PanicDangerRelation::NoneObserved,
+            reached_dangerous_sites: reached_dangerous_sites.clone(),
+            nearest_dangerous_site: reached_dangerous_sites.first().cloned(),
+            distance_to_dangerous_site: Some(0),
+            oracle_verdict,
+            harness_status,
+            notes,
+        };
+    }
+
+    let panic_fn_hint = infer_panic_function_hint(site_map, trace);
+    let distance = panic_fn_hint
+        .as_deref()
+        .map(|from| dpg.shortest_distance_to_any_dangerous_site(from))
+        .unwrap_or_else(|| rustdpr_core::UnsafeDistanceResult {
+            from_node: "<unknown>".into(),
+            nearest_site: None,
+            distance: None,
+        });
+
+    let relation = if trace.has_panic() {
+        match distance.distance {
+            Some(1) | Some(2) => PanicDangerRelation::AdjacentToUnsafe,
+            Some(d) if d >= 3 => PanicDangerRelation::FarFromUnsafe,
+            _ => PanicDangerRelation::BeforeUnsafe,
+        }
+    } else {
+        PanicDangerRelation::Unknown
+    };
+
+    let final_class = if trace.has_panic() {
+        match relation {
+            PanicDangerRelation::AdjacentToUnsafe => FinalClass::BlockingPanic,
+            PanicDangerRelation::FarFromUnsafe => FinalClass::NormalContractPanic,
+            PanicDangerRelation::BeforeUnsafe => FinalClass::BlockingPanic,
+            _ => FinalClass::Unknown,
+        }
+    } else {
+        FinalClass::Unknown
+    };
 
     ClassificationResult {
+        final_class,
         relation,
-        class,
-        reached_site_ids: reached,
+        reached_dangerous_sites,
+        nearest_dangerous_site: distance.nearest_site,
+        distance_to_dangerous_site: distance.distance,
+        oracle_verdict,
+        harness_status,
         notes,
-        panic_message,
-        panic_file,
-        panic_line,
-        oracle_confirmed,
-        oracle_results,
-        reached_dangerous_site,
-        panic_observed: panic_seen,
-        taxonomy_reason,
+    }
+}
+
+fn relation_from_trace(reached_dangerous_sites: &[String], trace: &TraceLog) -> PanicDangerRelation {
+    if reached_dangerous_sites.is_empty() {
+        if trace.has_panic() {
+            PanicDangerRelation::BeforeUnsafe
+        } else {
+            PanicDangerRelation::Unknown
+        }
+    } else if trace.has_panic() {
+        PanicDangerRelation::AfterUnsafe
+    } else {
+        PanicDangerRelation::NoneObserved
+    }
+}
+
+fn infer_panic_function_hint(site_map: &SiteMap, trace: &TraceLog) -> Option<String> {
+    let panic = trace.first_panic()?;
+    match panic {
+        TraceEvent::Panic {
+            file: Some(file),
+            line: Some(line),
+            ..
+        } => {
+            let line = *line as usize;
+            if let Some(site) = site_map.panic_sites.iter().find(|p| {
+                p.span.file == *file && p.span.line_start <= line && line <= p.span.line_end
+            }) {
+                return Some(site.enclosing_fn.clone());
+            }
+
+            if let Some(site) = site_map.panic_sites.iter().find(|p| {
+                p.span.file == *file && p.span.line_start.saturating_sub(2) <= line && line <= p.span.line_end + 2
+            }) {
+                return Some(site.enclosing_fn.clone());
+            }
+
+            None
+        }
+        _ => None,
     }
 }
