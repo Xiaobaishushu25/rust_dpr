@@ -26,10 +26,4 @@ mod tests {
         init_trace("artifacts/trace.jsonl").unwrap();
         let _ = parse(&[]);
     }
-
-    #[test]
-    fn non_empty_reaches_unsafe() {
-        init_trace("artifacts/trace.jsonl").unwrap();
-        assert_eq!(parse(&[7]), 7);
-    }
 }

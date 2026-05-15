@@ -1,3 +1,4 @@
+use std::path::Path;
 use rustdpr_core::{
     ClassificationNotes, ClassificationResult, DangerousPathGraph, HarnessValidityReport,
     OracleVerdict, PrimaryLabel, RelationLabel, SiteMap, TraceEvent, TraceLog, ValidityStatus,
@@ -179,6 +180,29 @@ fn relation_from_trace(reached_dangerous_sites: &[String], trace: &TraceLog) -> 
     }
 }
 
+fn normalize_path_str(s: &str) -> String {
+    let replaced = s.replace('\\', "/");
+    let p = Path::new(&replaced);
+
+    if let Ok(canon) = p.canonicalize() {
+        canon.to_string_lossy().replace('\\', "/").to_lowercase()
+    } else {
+        replaced.to_lowercase()
+    }
+}
+
+fn same_file_path(a: &str, b: &str) -> bool {
+    let na = normalize_path_str(a);
+    let nb = normalize_path_str(b);
+
+    if na == nb {
+        return true;
+    }
+
+    // 兜底：有时 panic hook 给的是相对路径，site_map 里是绝对路径
+    na.ends_with(&nb) || nb.ends_with(&na)
+}
+
 fn infer_panic_function_hint(site_map: &SiteMap, trace: &TraceLog) -> Option<String> {
     let panic = trace.first_panic()?;
     match panic {
@@ -188,18 +212,34 @@ fn infer_panic_function_hint(site_map: &SiteMap, trace: &TraceLog) -> Option<Str
             ..
         } => {
             let line = *line as usize;
+
             if let Some(site) = site_map.panic_sites.iter().find(|p| {
-                p.span.file == *file && p.span.line_start <= line && line <= p.span.line_end
+                same_file_path(&p.span.file, file)
+                    && p.span.line_start <= line
+                    && line <= p.span.line_end
             }) {
                 return Some(site.enclosing_fn.clone());
             }
+
             if let Some(site) = site_map.panic_sites.iter().find(|p| {
-                p.span.file == *file
+                same_file_path(&p.span.file, file)
                     && p.span.line_start.saturating_sub(2) <= line
                     && line <= p.span.line_end + 2
             }) {
                 return Some(site.enclosing_fn.clone());
             }
+
+            // 再兜底：如果同一文件里只有一个 unwrap-like panic site，就直接用它
+            let same_file_sites: Vec<_> = site_map
+                .panic_sites
+                .iter()
+                .filter(|p| same_file_path(&p.span.file, file))
+                .collect();
+
+            if same_file_sites.len() == 1 {
+                return Some(same_file_sites[0].enclosing_fn.clone());
+            }
+
             None
         }
         _ => None,
