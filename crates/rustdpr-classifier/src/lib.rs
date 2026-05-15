@@ -1,7 +1,6 @@
 use rustdpr_core::{
-    ClassificationNotes, ClassificationResult, DangerousPathGraph, FinalClass,
-    HarnessValidityReport, OracleVerdict, PanicDangerRelation, SiteMap, TraceEvent, TraceLog,
-    ValidityStatus,
+    ClassificationNotes, ClassificationResult, DangerousPathGraph, HarnessValidityReport,
+    OracleVerdict, PrimaryLabel, RelationLabel, SiteMap, TraceEvent, TraceLog, ValidityStatus,
 };
 
 pub fn classify_execution(
@@ -16,7 +15,6 @@ pub fn classify_execution(
         .unwrap_or(ValidityStatus::Unknown);
 
     let oracle_verdict = oracle.unwrap_or(OracleVerdict::Unknown);
-
     let mut notes = ClassificationNotes::default();
 
     let reached_dangerous_sites: Vec<String> = trace
@@ -40,65 +38,38 @@ pub fn classify_execution(
         notes
             .notes
             .push("Harness validity heuristics suggest likely misuse.".into());
+        notes.fired_rules.push("harness-misuse".into());
 
         return ClassificationResult {
-            final_class: FinalClass::HarnessMisuse,
-            relation: PanicDangerRelation::Unknown,
+            primary_label: PrimaryLabel::HarnessMisuse,
+            relation: RelationLabel::Unknown,
             reached_dangerous_sites,
             nearest_dangerous_site: None,
             distance_to_dangerous_site: None,
             oracle_verdict,
             harness_status,
+            confidence: 0.95,
+            review_required: false,
             notes,
         };
     }
 
     match oracle_verdict {
-        OracleVerdict::AddressSanitizerDoubleFree => {
+        OracleVerdict::AddressSanitizerDoubleFree
+        | OracleVerdict::AddressSanitizerUseAfterFree
+        | OracleVerdict::AddressSanitizerOutOfBounds
+        | OracleVerdict::MiriUndefinedBehavior => {
+            notes.fired_rules.push("oracle-confirmed".into());
             return ClassificationResult {
-                final_class: FinalClass::OracleConfirmedDoubleFree,
+                primary_label: PrimaryLabel::OracleConfirmedBug,
                 relation: relation_from_trace(&reached_dangerous_sites, trace),
                 reached_dangerous_sites,
                 nearest_dangerous_site: None,
                 distance_to_dangerous_site: Some(0),
                 oracle_verdict,
                 harness_status,
-                notes,
-            };
-        }
-        OracleVerdict::AddressSanitizerUseAfterFree => {
-            return ClassificationResult {
-                final_class: FinalClass::OracleConfirmedUseAfterFree,
-                relation: relation_from_trace(&reached_dangerous_sites, trace),
-                reached_dangerous_sites,
-                nearest_dangerous_site: None,
-                distance_to_dangerous_site: Some(0),
-                oracle_verdict,
-                harness_status,
-                notes,
-            };
-        }
-        OracleVerdict::AddressSanitizerOutOfBounds => {
-            return ClassificationResult {
-                final_class: FinalClass::OracleConfirmedOutOfBounds,
-                relation: relation_from_trace(&reached_dangerous_sites, trace),
-                reached_dangerous_sites,
-                nearest_dangerous_site: None,
-                distance_to_dangerous_site: Some(0),
-                oracle_verdict,
-                harness_status,
-                notes,
-            };
-        }
-        OracleVerdict::MiriUndefinedBehavior => {
-            return ClassificationResult {
-                final_class: FinalClass::OracleConfirmedUb,
-                relation: relation_from_trace(&reached_dangerous_sites, trace),
-                reached_dangerous_sites,
-                nearest_dangerous_site: None,
-                distance_to_dangerous_site: Some(0),
-                oracle_verdict,
-                harness_status,
+                confidence: 0.99,
+                review_required: false,
                 notes,
             };
         }
@@ -109,26 +80,32 @@ pub fn classify_execution(
         let nearest = reached_dangerous_sites.first().cloned();
 
         if trace.has_panic() {
+            notes.fired_rules.push("panic-after-unsafe".into());
             return ClassificationResult {
-                final_class: FinalClass::PanicAfterUnsafe,
-                relation: PanicDangerRelation::AfterUnsafe,
+                primary_label: PrimaryLabel::PanicAfterUnsafe,
+                relation: RelationLabel::AfterUnsafe,
                 reached_dangerous_sites,
                 nearest_dangerous_site: nearest,
                 distance_to_dangerous_site: Some(0),
                 oracle_verdict,
                 harness_status,
+                confidence: 0.85,
+                review_required: true,
                 notes,
             };
         }
 
+        notes.fired_rules.push("dangerous-path-reached".into());
         return ClassificationResult {
-            final_class: FinalClass::DangerousPathReached,
-            relation: PanicDangerRelation::NoneObserved,
+            primary_label: PrimaryLabel::DangerousPathReached,
+            relation: RelationLabel::NoneObserved,
             reached_dangerous_sites,
             nearest_dangerous_site: nearest,
             distance_to_dangerous_site: Some(0),
             oracle_verdict,
             harness_status,
+            confidence: 0.8,
+            review_required: false,
             notes,
         };
     }
@@ -137,58 +114,68 @@ pub fn classify_execution(
     let distance = panic_fn_hint
         .as_deref()
         .map(|from| dpg.shortest_distance_to_any_dangerous_site(from))
-        .unwrap_or_else(|| rustdpr_core::UnsafeDistanceResult {
-            from_node: "<unknown>".into(),
-            nearest_site: None,
-            distance: None,
-        });
+        .unwrap_or_default();
 
     let relation = if trace.has_panic() {
         match distance.distance {
-            Some(1) | Some(2) => PanicDangerRelation::AdjacentToUnsafe,
-            Some(d) if d >= 3 => PanicDangerRelation::FarFromUnsafe,
-            Some(0) => PanicDangerRelation::InsideUnsafeApprox,
-            _ => PanicDangerRelation::BeforeUnsafe,
+            Some(0) => RelationLabel::InsideUnsafe,
+            Some(1) | Some(2) => RelationLabel::AdjacentToUnsafe,
+            Some(_) => RelationLabel::BeforeUnsafe,
+            None => RelationLabel::Unknown,
         }
     } else {
-        PanicDangerRelation::Unknown
+        RelationLabel::Unknown
     };
 
-    let final_class = if trace.has_panic() {
+    let (primary_label, confidence, review_required) = if trace.has_panic() {
         match relation {
-            PanicDangerRelation::AdjacentToUnsafe => FinalClass::BlockingPanic,
-            PanicDangerRelation::FarFromUnsafe => FinalClass::NormalContractPanic,
-            PanicDangerRelation::InsideUnsafeApprox => FinalClass::BlockingPanic,
-            PanicDangerRelation::BeforeUnsafe => FinalClass::BlockingPanic,
-            _ => FinalClass::Unknown,
+            RelationLabel::AdjacentToUnsafe => {
+                notes.fired_rules.push("blocking-panic-adjacent".into());
+                (PrimaryLabel::BlockingPanic, 0.72, true)
+            }
+            RelationLabel::BeforeUnsafe => {
+                notes.fired_rules.push("contract-or-blocking-panic".into());
+                (PrimaryLabel::BlockingPanic, 0.68, true)
+            }
+            RelationLabel::InsideUnsafe => {
+                notes.fired_rules.push("inside-unsafe-panic".into());
+                (PrimaryLabel::InsideUnsafePanic, 0.85, true)
+            }
+            RelationLabel::Unknown | RelationLabel::NoneObserved | RelationLabel::AfterUnsafe | RelationLabel::FfiBoundary => {
+                notes.fired_rules.push("unknown-panic".into());
+                (PrimaryLabel::Unknown, 0.4, true)
+            }
         }
     } else {
-        FinalClass::Unknown
+        notes.fired_rules.push("no-signal".into());
+        (PrimaryLabel::Noise, 0.4, false)
     };
 
     ClassificationResult {
-        final_class,
+        primary_label,
         relation,
         reached_dangerous_sites,
         nearest_dangerous_site: distance.nearest_site,
         distance_to_dangerous_site: distance.distance,
         oracle_verdict,
         harness_status,
+        confidence,
+        review_required,
         notes,
     }
 }
 
-fn relation_from_trace(reached_dangerous_sites: &[String], trace: &TraceLog) -> PanicDangerRelation {
+fn relation_from_trace(reached_dangerous_sites: &[String], trace: &TraceLog) -> RelationLabel {
     if reached_dangerous_sites.is_empty() {
         if trace.has_panic() {
-            PanicDangerRelation::BeforeUnsafe
+            RelationLabel::BeforeUnsafe
         } else {
-            PanicDangerRelation::Unknown
+            RelationLabel::Unknown
         }
     } else if trace.has_panic() {
-        PanicDangerRelation::AfterUnsafe
+        RelationLabel::AfterUnsafe
     } else {
-        PanicDangerRelation::NoneObserved
+        RelationLabel::NoneObserved
     }
 }
 
@@ -206,7 +193,6 @@ fn infer_panic_function_hint(site_map: &SiteMap, trace: &TraceLog) -> Option<Str
             }) {
                 return Some(site.enclosing_fn.clone());
             }
-
             if let Some(site) = site_map.panic_sites.iter().find(|p| {
                 p.span.file == *file
                     && p.span.line_start.saturating_sub(2) <= line
@@ -214,7 +200,6 @@ fn infer_panic_function_hint(site_map: &SiteMap, trace: &TraceLog) -> Option<Str
             }) {
                 return Some(site.enclosing_fn.clone());
             }
-
             None
         }
         _ => None,

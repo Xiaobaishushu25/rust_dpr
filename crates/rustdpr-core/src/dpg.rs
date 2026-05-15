@@ -7,6 +7,10 @@ pub enum DpgNodeKind {
     Function,
     DangerousSite,
     PanicSite,
+    HarnessSite,
+    OracleEvent,
+    FfiBoundary,
+    TraceWaypoint,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +26,13 @@ pub enum DpgEdgeKind {
     Calls,
     ContainsDangerous,
     ContainsPanic,
+    MayReach,
+    ObservedBefore,
+    ObservedAfter,
+    InsideSameUnsafeRegion,
+    ValidatedByOracle,
+    BlockedByPanic,
+    TriggeredByHarness,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,6 +40,9 @@ pub struct DpgEdge {
     pub from: String,
     pub to: String,
     pub kind: DpgEdgeKind,
+    pub confidence: f32,
+    pub static_or_dynamic: String,
+    pub support_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -37,7 +51,7 @@ pub struct DangerousPathGraph {
     pub edges: Vec<DpgEdge>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UnsafeDistanceResult {
     pub from_node: String,
     pub nearest_site: Option<String>,
@@ -49,7 +63,7 @@ impl DangerousPathGraph {
         self.nodes.iter().any(|n| n.id == node_id)
     }
 
-    pub fn outgoing<'a>(&'a self, node_id: &str) -> impl Iterator<Item = &'a DpgEdge> {
+    pub fn outgoing<'a>(&'a self, node_id: &'a str) -> impl Iterator<Item = &'a DpgEdge> {
         self.edges.iter().filter(move |e| e.from == node_id)
     }
 
@@ -89,6 +103,7 @@ impl DangerousPathGraph {
 
         while let Some(cur) = q.pop_front() {
             let cur_dist = *dist.get(&cur).unwrap_or(&0);
+
             for edge in self.outgoing(&cur) {
                 if visited.contains(&edge.to) {
                     continue;

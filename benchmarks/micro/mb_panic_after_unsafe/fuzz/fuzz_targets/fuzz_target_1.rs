@@ -5,7 +5,7 @@ use rustdpr_trace::{init_trace, install_panic_hook};
 use std::path::PathBuf;
 
 fuzz_target!(|data: &[u8]| {
-    let _ = init_trace(PathBuf::from("fuzz_trace.jsonl"));
+    let _ = init_trace("fuzz_trace.jsonl");
     install_panic_hook();
     let _ = std::panic::catch_unwind(|| {
         let _ = process(data);

@@ -33,6 +33,9 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
                 from: public_api_id,
                 to: f.function_id.clone(),
                 kind: DpgEdgeKind::Exposes,
+                confidence: 1.0,
+                static_or_dynamic: "static".into(),
+                support_count: 1,
             });
         } else {
             insert_node(
@@ -70,6 +73,9 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
             from: edge.caller.clone(),
             to: edge.callee.clone(),
             kind: DpgEdgeKind::Calls,
+            confidence: 0.7,
+            static_or_dynamic: "static".into(),
+            support_count: 1,
         });
     }
 
@@ -96,6 +102,9 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
             from: ds.enclosing_fn.clone(),
             to: ds.site_id.clone(),
             kind: DpgEdgeKind::ContainsDangerous,
+            confidence: 1.0,
+            static_or_dynamic: "static".into(),
+            support_count: 1,
         });
     }
 
@@ -122,6 +131,9 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
             from: ps.enclosing_fn.clone(),
             to: ps.panic_id.clone(),
             kind: DpgEdgeKind::ContainsPanic,
+            confidence: 1.0,
+            static_or_dynamic: "static".into(),
+            support_count: 1,
         });
     }
 

@@ -18,11 +18,10 @@ pub fn trigger(flag: bool) {
 mod tests {
     use super::*;
     use rustdpr_trace::{init_trace, install_panic_hook};
-    use std::path::PathBuf;
 
     #[test]
     fn trigger_blocking_panic() {
-        init_trace(PathBuf::from("trace.jsonl")).unwrap();
+        init_trace("trace.jsonl").unwrap();
         install_panic_hook();
         let _ = std::panic::catch_unwind(|| trigger(true));
     }

@@ -27,11 +27,10 @@ pub fn trigger(idx: usize) -> u8 {
 mod tests {
     use super::*;
     use rustdpr_trace::{init_trace, install_panic_hook};
-    use std::path::PathBuf;
 
     #[test]
     fn trigger_oob_raw() {
-        init_trace(PathBuf::from("trace.jsonl")).unwrap();
+        init_trace("trace.jsonl").unwrap();
         install_panic_hook();
         let _ = trigger(100);
     }

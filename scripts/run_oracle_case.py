@@ -79,7 +79,7 @@ def main(case_name: str):
     run([
         "cargo", "run", "-p", "rustdpr-cli", "--",
         "analyze-sites",
-        "--crate-dir", str(case_dir),
+        "--crate-root", str(case_dir),
         "--out", str(data_dir / "site_map.json"),
     ])
 

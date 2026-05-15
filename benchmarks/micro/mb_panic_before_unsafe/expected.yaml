@@ -1,6 +1,7 @@
 case_id: mb_panic_before_unsafe
-expected_class: BlockingPanic
-expected_relation: NoDangerousSiteReached
-expected_reached_sites: 0
-notes:
-  - panic happens before unsafe block is reached
+category: micro
+expected_primary_label: BlockingPanic
+expected_relation: BeforeUnsafe
+expected_oracle: Unknown
+expected_harness_validity: LikelyValid
+expected_reached_dangerous_sites: []

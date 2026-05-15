@@ -1,0 +1,5 @@
+suite: micro
+cases:
+  - mb_unwrap_shallow
+  - mb_panic_before_unsafe
+  - mb_panic_after_unsafe

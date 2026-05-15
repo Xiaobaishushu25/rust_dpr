@@ -29,7 +29,6 @@ pub fn analyze_harness_validity(harness_path: &Path) -> Result<HarnessValidityRe
             .with_context(|| format!("failed to read harness {}", file.display()))?;
         let ast: File = syn::parse_file(&content)
             .with_context(|| format!("failed to parse harness {}", file.display()))?;
-
         let mut visitor = HarnessVisitor {
             file: file.display().to_string(),
             evidence: vec![],
@@ -38,22 +37,29 @@ pub fn analyze_harness_validity(harness_path: &Path) -> Result<HarnessValidityRe
         evidence.extend(visitor.evidence);
     }
 
+    let violated_patterns: Vec<String> = evidence.iter().map(|e| e.rule.clone()).collect();
+
     let status = if evidence.is_empty() {
         ValidityStatus::LikelyValid
     } else if evidence.iter().any(|e| {
         e.rule == "direct-unsafe-block"
             || e.rule == "null-pointer-construction"
             || e.rule == "from-raw-parts"
+            || e.rule == "box-from-raw"
     }) {
         ValidityStatus::LikelyMisuse
     } else {
         ValidityStatus::Unknown
     };
 
+    let needs_manual_review = matches!(status, ValidityStatus::Unknown);
+
     Ok(HarnessValidityReport {
         harness_path: harness_path.display().to_string(),
         status,
         evidence,
+        violated_patterns,
+        needs_manual_review,
     })
 }
 
@@ -67,9 +73,10 @@ impl HarnessVisitor {
         node.span().start().line
     }
 
-    fn add<T: Spanned>(&mut self, node: &T, rule: &str, message: &str) {
+    fn add<T: Spanned>(&mut self, node: &T, rule: &str, severity: &str, message: &str) {
         self.evidence.push(ValidityEvidence {
             rule: rule.to_string(),
+            severity: severity.to_string(),
             message: message.to_string(),
             file: self.file.clone(),
             line: self.line_of(node),
@@ -91,6 +98,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
         self.add(
             node,
             "direct-unsafe-block",
+            "high",
             "harness contains an explicit unsafe block",
         );
         visit::visit_expr_unsafe(self, node);
@@ -98,33 +106,46 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
 
     fn visit_expr_call(&mut self, node: &'ast ExprCall) {
         if let syn::Expr::Path(expr_path) = &*node.func {
-            let callee = Self::path_to_string(expr_path);
+            let callee = Self::path_to_string(expr_path).to_lowercase();
 
             if callee.contains("null") {
                 self.add(
                     node,
                     "null-pointer-construction",
+                    "high",
                     "harness constructs a null pointer",
                 );
             }
+
             if callee.contains("from_raw_parts") || callee.contains("from_raw_parts_mut") {
                 self.add(
                     node,
                     "from-raw-parts",
+                    "high",
                     "harness constructs a slice from raw parts",
                 );
             }
+
+            if callee.contains("box::from_raw") {
+                self.add(
+                    node,
+                    "box-from-raw",
+                    "high",
+                    "harness reconstructs ownership from a raw pointer",
+                );
+            }
         }
+
         visit::visit_expr_call(self, node);
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
         let method = node.method.to_string();
-
         if method == "unwrap" || method == "expect" {
             self.add(
                 node,
                 "unwrap-like-in-harness",
+                "medium",
                 "harness itself may panic before target exploration",
             );
         }
