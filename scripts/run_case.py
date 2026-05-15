@@ -1,93 +1,59 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
-import sys
-from pathlib import Path
+import argparse
 
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-BENCH_DIR = ROOT_DIR / "benchmarks" / "micro"
-DATA_DIR = ROOT_DIR / "data"
-REPORTS_DIR = ROOT_DIR / "reports"
-
-
-def run_cmd(cmd: list[str], cwd: Path | None = None, log_path: Path | None = None) -> None:
-    print(f"[cmd] {' '.join(cmd)}")
-    process = subprocess.Popen(
-        cmd,
-        cwd=str(cwd) if cwd else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-
-    assert process.stdout is not None
-
-    log_file = None
-    if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_file = log_path.open("w", encoding="utf-8")
-
-    try:
-        for line in process.stdout:
-            print(line, end="")
-            if log_file is not None:
-                log_file.write(line)
-    finally:
-        if log_file is not None:
-            log_file.close()
-
-    return_code = process.wait()
-    if return_code != 0:
-        raise subprocess.CalledProcessError(return_code, cmd)
+from common import (
+    ROOT_DIR,
+    find_trace_file,
+    jsonl_trace_to_tracelog_json,
+    read_json,
+    resolve_case,
+    run_cmd,
+    suite_case_data_dir,
+    write_json,
+)
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: python scripts/run_case.py <case_name>")
-        return 1
-
-    case_name = sys.argv[1]
-    case_dir = BENCH_DIR / case_name
-    if not case_dir.exists():
-        print(f"case not found: {case_dir}")
-        return 1
-
-    data_dir = DATA_DIR / case_name
-    report_path = REPORTS_DIR / f"{case_name}.md"
-    trace_path = case_dir / "artifacts" / "trace.jsonl"
-    test_log_path = case_dir / "artifacts" / "test.stdout.log"
-
-    data_dir.mkdir(parents=True, exist_ok=True)
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    trace_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if trace_path.exists():
-        trace_path.unlink()
-    if test_log_path.exists():
-        test_log_path.unlink()
-
-    print(f"[1/5] collect metadata: {case_name}")
-    run_cmd(
-        [
-            "cargo",
-            "run",
-            "-p",
-            "rustdpr-cli",
-            "--",
-            "collect",
-            "--crate-dir",
-            str(case_dir),
-            "--out",
-            str(data_dir / "crate_meta.json"),
-        ],
-        cwd=ROOT_DIR,
+    parser = argparse.ArgumentParser(description="Run a single RustDPR benchmark case")
+    parser.add_argument("case", help="case name")
+    parser.add_argument("--suite", choices=["micro", "oracle", "taxonomy"], default=None)
+    parser.add_argument(
+        "--asan-log",
+        default=None,
+        help="path to ASan log file; passed through to rustdpr classify",
     )
+    parser.add_argument(
+        "--miri-log",
+        default=None,
+        help="path to Miri log file; passed through to rustdpr classify",
+    )
+    parser.add_argument(
+        "--skip-harness",
+        action="store_true",
+        help="skip validate-harness even if fuzz/ exists",
+    )
+    args = parser.parse_args()
 
-    print(f"[2/5] analyze sites: {case_name}")
+    suite, case_dir = resolve_case(args.case, args.suite)
+    case_name = case_dir.name
+    out_dir = suite_case_data_dir(suite, case_name)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    site_map = out_dir / "site_map.json"
+    function_index = out_dir / "function_index.json"
+    dpg = out_dir / "dpg.json"
+    harness_json = out_dir / "harness_validity.json"
+    classification_json = out_dir / "classification.json"
+    run_meta_json = out_dir / "run_meta.json"
+    trace_log_json = out_dir / "trace_log.json"
+
+    test_log = out_dir / "cargo_test.log"
+
+    print(f"[case] suite={suite} case={case_name}")
+    print(f"[out ] {out_dir}")
+
+    # 1) analyze-sites
     run_cmd(
         [
             "cargo",
@@ -96,26 +62,17 @@ def main() -> int:
             "rustdpr-cli",
             "--",
             "analyze-sites",
-            "--crate-dir",
+            "--crate-root",
             str(case_dir),
             "--out",
-            str(data_dir / "site_map.json"),
+            str(site_map),
+            "--function-out",
+            str(function_index),
         ],
         cwd=ROOT_DIR,
     )
 
-    print(f"[3/5] run tests: {case_name}")
-    run_cmd(
-        ["cargo", "test", "--", "--nocapture"],
-        cwd=case_dir,
-        log_path=test_log_path,
-    )
-
-    if not trace_path.exists():
-        print(f"trace file not found: {trace_path}")
-        return 1
-
-    print(f"[4/5] classify: {case_name}")
+    # 2) build-dpg
     run_cmd(
         [
             "cargo",
@@ -123,42 +80,108 @@ def main() -> int:
             "-p",
             "rustdpr-cli",
             "--",
-            "classify",
-            "--trace",
-            str(trace_path),
+            "build-dpg",
             "--site-map",
-            str(data_dir / "site_map.json"),
+            str(site_map),
+            "--function-index",
+            str(function_index),
             "--out",
-            str(data_dir / "classification.json"),
+            str(dpg),
         ],
         cwd=ROOT_DIR,
     )
 
-    print(f"[5/5] render report: {case_name}")
+    # 3) validate-harness (optional)
+    fuzz_dir = case_dir / "fuzz"
+    harness_used = False
+    if fuzz_dir.exists() and not args.skip_harness:
+        run_cmd(
+            [
+                "cargo",
+                "run",
+                "-p",
+                "rustdpr-cli",
+                "--",
+                "validate-harness",
+                "--harness",
+                str(fuzz_dir),
+                "--out",
+                str(harness_json),
+            ],
+            cwd=ROOT_DIR,
+        )
+        harness_used = True
+
+    # 4) run tests
     run_cmd(
         [
             "cargo",
-            "run",
-            "-p",
-            "rustdpr-cli",
+            "test",
+            "--manifest-path",
+            str(case_dir / "Cargo.toml"),
             "--",
-            "report",
-            "--trace",
-            str(trace_path),
-            "--site-map",
-            str(data_dir / "site_map.json"),
-            "--result",
-            str(data_dir / "classification.json"),
-            "--out",
-            str(report_path),
+            "--nocapture",
         ],
         cwd=ROOT_DIR,
+        log_path=test_log,
+        check=False,
     )
 
-    print(f"done: {case_name}")
-    print(f"  trace:  {trace_path}")
-    print(f"  class:  {data_dir / 'classification.json'}")
-    print(f"  report: {report_path}")
+    # 5) find trace and convert JSONL -> TraceLog JSON
+    trace_jsonl = find_trace_file(case_dir)
+    jsonl_trace_to_tracelog_json(trace_jsonl, trace_log_json)
+
+    # 6) classify
+    classify_cmd = [
+        "cargo",
+        "run",
+        "-p",
+        "rustdpr-cli",
+        "--",
+        "classify",
+        "--site-map",
+        str(site_map),
+        "--trace",
+        str(trace_log_json),
+        "--dpg",
+        str(dpg),
+        "--out",
+        str(classification_json),
+    ]
+
+    if harness_used:
+        classify_cmd.extend(["--harness", str(harness_json)])
+
+    if args.asan_log:
+        classify_cmd.extend(["--asan-log", str(args.asan_log)])
+
+    if args.miri_log:
+        classify_cmd.extend(["--miri-log", str(args.miri_log)])
+
+    run_cmd(classify_cmd, cwd=ROOT_DIR)
+
+    classification = read_json(classification_json)
+    run_meta = {
+        "suite": suite,
+        "case": case_name,
+        "case_dir": str(case_dir),
+        "trace_jsonl": str(trace_jsonl),
+        "trace_log_json": str(trace_log_json),
+        "site_map": str(site_map),
+        "function_index": str(function_index),
+        "dpg": str(dpg),
+        "harness_validity": str(harness_json) if harness_used else None,
+        "classification": classification,
+    }
+    write_json(run_meta_json, run_meta)
+
+    print("\n[done]")
+    print(f"trace jsonl     : {trace_jsonl}")
+    print(f"trace log json  : {trace_log_json}")
+    print(f"classification  : {classification_json}")
+    print(f"primary_label   : {classification.get('primary_label')}")
+    print(f"relation        : {classification.get('relation')}")
+    print(f"oracle_verdict  : {classification.get('oracle_verdict')}")
     return 0
 
 

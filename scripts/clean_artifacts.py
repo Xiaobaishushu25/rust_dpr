@@ -1,13 +1,10 @@
 from __future__ import annotations
 
+import argparse
 import shutil
 from pathlib import Path
 
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data"
-REPORTS_DIR = ROOT_DIR / "reports"
-MICRO_DIR = ROOT_DIR / "benchmarks" / "micro"
+from common import BENCHMARKS_DIR, DATA_DIR
 
 
 def remove_path(path: Path) -> None:
@@ -20,21 +17,37 @@ def remove_path(path: Path) -> None:
 
 
 def main() -> int:
-    if DATA_DIR.exists():
-        remove_path(DATA_DIR)
+    parser = argparse.ArgumentParser(description="Clean RustDPR generated artifacts")
+    parser.add_argument(
+        "--suite",
+        choices=["micro", "oracle", "taxonomy"],
+        default=None,
+        help="clean only one suite",
+    )
+    args = parser.parse_args()
 
-    if REPORTS_DIR.exists():
-        remove_path(REPORTS_DIR)
+    suites = [args.suite] if args.suite else ["micro", "oracle", "taxonomy"]
 
-    if MICRO_DIR.exists():
-        for case_dir in MICRO_DIR.iterdir():
-            if not case_dir.is_dir():
-                continue
-            artifacts_dir = case_dir / "artifacts"
-            if artifacts_dir.exists():
-                remove_path(artifacts_dir)
+    for suite in suites:
+        data_suite_dir = DATA_DIR / suite
+        if data_suite_dir.exists():
+            remove_path(data_suite_dir)
 
-    print("cleaned data, reports, and benchmark artifacts")
+        suite_dir = BENCHMARKS_DIR / suite
+        if not suite_dir.exists():
+            continue
+
+        for case_dir in [p for p in suite_dir.iterdir() if p.is_dir()]:
+            for candidate in [
+                case_dir / "artifacts",
+                case_dir / "trace.jsonl",
+                case_dir / "asan.log",
+                case_dir / "miri.log",
+            ]:
+                if candidate.exists():
+                    remove_path(candidate)
+
+    print("clean complete")
     return 0
 
 

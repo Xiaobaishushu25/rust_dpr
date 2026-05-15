@@ -1,38 +1,44 @@
-import subprocess
-import sys
+from __future__ import annotations
+
+import argparse
 from pathlib import Path
 
+from common import ROOT_DIR, parse_oracle_verdict_from_log_text, resolve_case, run_cmd
 
-def run_miri(case_dir: Path, out_dir: Path):
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run Miri on a RustDPR benchmark case")
+    parser.add_argument("case", help="case name")
+    parser.add_argument("--suite", choices=["micro", "oracle", "taxonomy"], default=None)
+    parser.add_argument("--out-dir", default=None, help="output directory for miri.log")
+    args = parser.parse_args()
+
+    suite, case_dir = resolve_case(args.case, args.suite)
+    out_dir = Path(args.out_dir) if args.out_dir else (ROOT_DIR / "data" / suite / case_dir.name / "oracle")
     out_dir.mkdir(parents=True, exist_ok=True)
+
     log_file = out_dir / "miri.log"
 
-    cmd = [
-        "cargo",
-        "+nightly",
-        "miri",
-        "test",
-        "--manifest-path",
-        str(case_dir / "Cargo.toml"),
-    ]
+    run_cmd(
+        [
+            "cargo",
+            "+nightly",
+            "miri",
+            "test",
+            "--manifest-path",
+            str(case_dir / "Cargo.toml"),
+        ],
+        cwd=ROOT_DIR,
+        log_path=log_file,
+        check=False,
+    )
 
-    print(f"Running Miri benchmark in {case_dir} ...")
-    with log_file.open("w", encoding="utf-8") as f:
-        subprocess.run(
-            cmd,
-            stdout=f,
-            stderr=subprocess.STDOUT,
-            check=False,
-        )
-
-    print(f"Miri output saved to {log_file}")
+    content = log_file.read_text(encoding="utf-8", errors="replace")
+    verdict = parse_oracle_verdict_from_log_text(content, "miri")
+    print(f"[miri verdict] {verdict}")
+    print(f"[log] {log_file}")
+    return 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python scripts/run_miri.py <case_dir> <out_dir>")
-        sys.exit(1)
-
-    case_dir = Path(sys.argv[1])
-    out_dir = Path(sys.argv[2])
-    run_miri(case_dir, out_dir)
+    raise SystemExit(main())
