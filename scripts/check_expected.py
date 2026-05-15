@@ -2,49 +2,8 @@
 from __future__ import annotations
 
 import argparse
-import json
-import sys
-from pathlib import Path
 
-try:
-    import yaml
-except ImportError:
-    print("PyYAML is required. Install with: pip install pyyaml")
-    sys.exit(1)
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-BENCHMARKS_DIR = ROOT_DIR / "benchmarks"
-DATA_DIR = ROOT_DIR / "data"
-
-
-def read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def read_yaml(path: Path) -> dict:
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
-
-
-def normalize_expected_schema(expected: dict) -> dict:
-    # 新 schema（micro）
-    if "expected_primary_label" in expected:
-        return {
-            "primary_label": expected.get("expected_primary_label"),
-            "relation": expected.get("expected_relation"),
-            "oracle_verdict": expected.get("expected_oracle"),
-            "harness_status": expected.get("expected_harness_validity"),
-            "reached_count": len(expected.get("expected_reached_dangerous_sites", [])),
-        }
-
-    # 旧 schema（oracle / taxonomy）
-    old = expected.get("expected", {})
-    return {
-        "primary_label": old.get("class"),
-        "relation": expected.get("expected_relation"),
-        "oracle_verdict": None,
-        "harness_status": None,
-        "reached_count": 1 if old.get("reached_dangerous_site") else 0,
-    }
+from common import BENCHMARKS_DIR, DATA_DIR, load_yaml, normalize_expected_schema, read_json
 
 
 def check_suite(suite: str) -> bool:
@@ -67,7 +26,7 @@ def check_suite(suite: str) -> bool:
             print(f"[SKIP] {suite}/{case_name}: missing classification.json")
             continue
 
-        expected = normalize_expected_schema(read_yaml(expected_path))
+        expected = normalize_expected_schema(load_yaml(expected_path))
         result = read_json(result_path)
 
         exp_class = expected.get("primary_label")

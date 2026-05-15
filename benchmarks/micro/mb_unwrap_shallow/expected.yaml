@@ -1,6 +1,9 @@
 case_id: mb_unwrap_shallow
-expected_class: NormalContractPanic
-expected_relation: NoDangerousSiteReached
-expected_reached_sites: 0
+category: micro
+expected_primary_label: ContractPanic
+expected_relation: NoneObserved
+expected_oracle: Unknown
+expected_harness_validity: LikelyValid
+expected_reached_dangerous_sites: []
 notes:
   - shallow unwrap panic without unsafe

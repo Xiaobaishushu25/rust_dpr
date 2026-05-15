@@ -1,10 +1,10 @@
 case_id: mb_double_free
-expected:
-  class: OracleConfirmedDoubleFree
-  oracle_confirmed: true
-  panic_observed: false
-  reached_dangerous_site: true
-  oracle_verdicts:
-    - DoubleFree
+category: oracle
+expected_primary_label: OracleConfirmedBug
+expected_relation: NoneObserved
+expected_oracle: AddressSanitizerDoubleFree
+expected_harness_validity: LikelyValid
+expected_reached_dangerous_sites:
+  - S0001
 notes:
   - oracle should confirm double free specifically

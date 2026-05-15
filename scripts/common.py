@@ -171,36 +171,127 @@ def parse_oracle_verdict_from_log_text(content: str, source: str) -> str:
 
     if source == "asan":
         if "double-free" in lower:
-            return "asan-double-free"
+            return "AddressSanitizerDoubleFree"
         if "use-after-free" in lower:
-            return "asan-uaf"
+            return "AddressSanitizerUseAfterFree"
         if "out-of-bounds" in lower or "heap-buffer-overflow" in lower:
-            return "asan-oob"
-        return "unknown"
+            return "AddressSanitizerOutOfBounds"
+        return "Unknown"
 
     if source == "miri":
         if "undefined behavior" in lower or "ub" in lower:
-            return "miri-ub"
-        return "unknown"
+            return "MiriUndefinedBehavior"
+        return "Unknown"
 
     raise ValueError(f"unknown oracle source: {source}")
 
 
+PRIMARY_LABEL_MAP = {
+    "Noise": "Noise",
+    "NormalContractPanic": "ContractPanic",
+    "ContractPanic": "ContractPanic",
+    "HarnessMisuse": "HarnessMisuse",
+    "BlockingPanic": "BlockingPanic",
+    "PanicAfterUnsafe": "PanicAfterUnsafe",
+    "InsideUnsafePanic": "InsideUnsafePanic",
+    "DangerousPathReached": "DangerousPathReached",
+    "OracleConfirmedBug": "OracleConfirmedBug",
+    "OracleConfirmedDoubleFree": "OracleConfirmedBug",
+    "OracleConfirmedUseAfterFree": "OracleConfirmedBug",
+    "OracleConfirmedOutOfBounds": "OracleConfirmedBug",
+    "SuspiciousCandidate": "SuspiciousCandidate",
+    "Unknown": "Unknown",
+}
+
+RELATION_LABEL_MAP = {
+    "NoneObserved": "NoneObserved",
+    "NoDangerousSiteReached": "NoneObserved",
+    "BeforeUnsafe": "BeforeUnsafe",
+    "AfterUnsafe": "AfterUnsafe",
+    "InsideUnsafe": "InsideUnsafe",
+    "AdjacentToUnsafe": "AdjacentToUnsafe",
+    "FfiBoundary": "FfiBoundary",
+    "Unknown": "Unknown",
+}
+
+
+def normalize_primary_label(value: Any) -> Any:
+    if value is None:
+        return None
+    return PRIMARY_LABEL_MAP.get(str(value), str(value))
+
+
+def normalize_relation_label(value: Any) -> Any:
+    if value is None:
+        return None
+    return RELATION_LABEL_MAP.get(str(value), str(value))
+
+
+def normalize_oracle_verdicts(values: Any) -> Any:
+    if values is None:
+        return None
+
+    if isinstance(values, list) and values:
+        first = str(values[0])
+    else:
+        first = str(values)
+
+    mapping = {
+        "Unknown": "Unknown",
+        "DoubleFree": "AddressSanitizerDoubleFree",
+        "UseAfterFree": "AddressSanitizerUseAfterFree",
+        "OutOfBounds": "AddressSanitizerOutOfBounds",
+        "UndefinedBehavior": "MiriUndefinedBehavior",
+        "AddressSanitizerDoubleFree": "AddressSanitizerDoubleFree",
+        "AddressSanitizerUseAfterFree": "AddressSanitizerUseAfterFree",
+        "AddressSanitizerOutOfBounds": "AddressSanitizerOutOfBounds",
+        "MiriUndefinedBehavior": "MiriUndefinedBehavior",
+    }
+    return mapping.get(first, first)
+
+
 def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
+    # 新 schema
     if "expected_primary_label" in expected:
         return {
-            "primary_label": expected.get("expected_primary_label"),
-            "relation": expected.get("expected_relation"),
-            "oracle_verdict": expected.get("expected_oracle"),
+            "primary_label": normalize_primary_label(expected.get("expected_primary_label")),
+            "relation": normalize_relation_label(expected.get("expected_relation")),
+            "oracle_verdict": normalize_oracle_verdicts(expected.get("expected_oracle")),
             "harness_status": expected.get("expected_harness_validity"),
             "reached_count": len(expected.get("expected_reached_dangerous_sites", [])),
         }
 
+    # 中间 schema：expected_class / expected_relation / expected_reached_sites
+    if "expected_class" in expected:
+        return {
+            "primary_label": normalize_primary_label(expected.get("expected_class")),
+            "relation": normalize_relation_label(expected.get("expected_relation")),
+            "oracle_verdict": normalize_oracle_verdicts(expected.get("expected_oracle")),
+            "harness_status": expected.get("expected_harness_validity"),
+            "reached_count": int(expected.get("expected_reached_sites", 0) or 0),
+        }
+
+    # 旧嵌套 schema：expected: { ... }
     old = expected.get("expected", {})
+    oracle_verdict = normalize_oracle_verdicts(old.get("oracle_verdicts"))
+
+    relation = expected.get("expected_relation")
+    if relation is None:
+        panic_observed = old.get("panic_observed")
+        reached = old.get("reached_dangerous_site")
+        if reached and panic_observed:
+            relation = "AfterUnsafe"
+        elif reached and not panic_observed:
+            relation = "NoneObserved"
+        elif (not reached) and panic_observed:
+            relation = "BeforeUnsafe"
+        else:
+            relation = None
+
     return {
-        "primary_label": old.get("class"),
-        "relation": expected.get("expected_relation"),
-        "oracle_verdict": None,
+        "primary_label": normalize_primary_label(old.get("class")),
+        "relation": normalize_relation_label(relation),
+        "oracle_verdict": oracle_verdict,
         "harness_status": None,
         "reached_count": 1 if old.get("reached_dangerous_site") else 0,
     }

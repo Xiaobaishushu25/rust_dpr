@@ -1,3 +1,4 @@
+#python scripts/run_case.py mb_panic_before_unsafe --suite micro
 from __future__ import annotations
 
 import argparse
