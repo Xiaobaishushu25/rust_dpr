@@ -1,1 +1,1 @@
-{"Panic":{"message":"called `Option::unwrap()` on a `None` value","file":"benchmarks\\micro\\mb_unwrap_shallow\\src\\lib.rs","line":5,"ts_millis":1778507180734}}
+{"Panic":{"message":"called `Option::unwrap()` on a `None` value","file":"benchmarks\\micro\\mb_unwrap_shallow\\src\\lib.rs","line":5,"ts_millis":1778927549071,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}

@@ -17,7 +17,8 @@ members = [
   "benchmarks/taxonomy/panic_before_unsafe",
 ]
 exclude = [
-  "benchmarks/micro/mb_panic_after_unsafe/fuzz"
+  "benchmarks/micro/mb_panic_after_unsafe/fuzz",
+  "benchmarks/micro/mb_panic_before_unsafe/fuzz",
 ]
 resolver = "2"
 

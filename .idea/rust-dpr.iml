@@ -18,6 +18,8 @@
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/panic_before_unsafe/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_before_unsafe/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_unwrap_shallow/fuzz/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

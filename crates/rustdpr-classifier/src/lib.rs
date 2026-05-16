@@ -245,6 +245,22 @@ fn infer_relation_evidence(
         };
     }
 
+    // Panic exists, but the benchmark / crate exposes no dangerous sites at all.
+    // This is a normal non-unsafe-related panic, not an unknown relation.
+    if reached_dangerous_sites.is_empty() && site_map.dangerous_sites.is_empty() {
+        return RelationEvidence {
+            relation: RelationLabel::NoneObserved,
+            nearest_dangerous_site: None,
+            distance_to_dangerous_site: None,
+            explanation: Some(
+                "Panic observed, but no dangerous sites exist in the site map; treating as non-unsafe-related panic."
+                    .into(),
+            ),
+            fired_rules: vec!["panic-without-any-dangerous-sites".into()],
+            conflicting_evidence: vec![],
+        };
+    }
+
     if let Some(ev) = infer_from_static_panic_location(site_map, trace, dpg) {
         return ev;
     }
