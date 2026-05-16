@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ except ImportError:
 ROOT_DIR = Path(__file__).resolve().parent.parent
 BENCHMARKS_DIR = ROOT_DIR / "benchmarks"
 DATA_DIR = ROOT_DIR / "data"
+REPORTS_DIR = ROOT_DIR / "reports"
 
 
 def ensure_pyyaml() -> None:
@@ -127,6 +129,16 @@ def suite_case_data_dir(suite: str, case_name: str) -> Path:
     return DATA_DIR / suite / case_name
 
 
+def suite_case_report_path(suite: str, case_name: str) -> Path:
+    return REPORTS_DIR / suite / f"{case_name}.md"
+
+
+def clean_case_output_dir(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True, exist_ok=True)
+
+
 def possible_trace_paths(case_dir: Path) -> list[Path]:
     return [
         case_dir / "artifacts" / "trace.jsonl",
@@ -136,18 +148,41 @@ def possible_trace_paths(case_dir: Path) -> list[Path]:
 
 
 def find_trace_file(case_dir: Path) -> Path:
+    candidates: list[Path] = []
     for p in possible_trace_paths(case_dir):
         if p.exists():
-            return p
+            candidates.append(p)
 
-    found = list(case_dir.rglob("trace.jsonl"))
-    if found:
-        return found[0]
+    candidates.extend(case_dir.rglob("trace.jsonl"))
+
+    unique = []
+    seen = set()
+    for p in candidates:
+        rp = str(p.resolve())
+        if rp not in seen:
+            seen.add(rp)
+            unique.append(p)
+
+    if len(unique) == 1:
+        return unique[0]
+
+    if len(unique) > 1:
+        raise RuntimeError(
+            "multiple trace.jsonl files found; cleanup old artifacts first:\n"
+            + "\n".join(str(p) for p in unique)
+        )
 
     raise FileNotFoundError(f"trace.jsonl not found under {case_dir}")
 
 
-def jsonl_trace_to_tracelog_json(trace_jsonl: Path, out_json: Path) -> Path:
+def jsonl_trace_to_tracelog_json(
+    trace_jsonl: Path,
+    out_json: Path,
+    *,
+    suite: str | None = None,
+    case_name: str | None = None,
+    run_id: str | None = None,
+) -> Path:
     events: list[dict[str, Any]] = []
 
     with trace_jsonl.open("r", encoding="utf-8", errors="replace") as f:
@@ -156,14 +191,32 @@ def jsonl_trace_to_tracelog_json(trace_jsonl: Path, out_json: Path) -> Path:
             if not line:
                 continue
             try:
-                events.append(json.loads(line))
+                obj = json.loads(line)
             except json.JSONDecodeError as e:
                 raise RuntimeError(
                     f"invalid JSONL trace at {trace_jsonl}, line {idx}: {e}"
                 ) from e
+            if not isinstance(obj, dict):
+                raise RuntimeError(
+                    f"invalid JSONL trace at {trace_jsonl}, line {idx}: expected object"
+                )
+            events.append(obj)
 
-    write_json(out_json, {"events": events})
+    payload = {
+        "schema_version": "0.2.0",
+        "suite": suite,
+        "case_name": case_name,
+        "run_id": run_id,
+        "events": events,
+    }
+    write_json(out_json, payload)
     return out_json
+
+
+def validate_result_schema(data: dict[str, Any], required: list[str], label: str) -> None:
+    missing = [k for k in required if k not in data]
+    if missing:
+        raise RuntimeError(f"{label} missing required fields: {missing}")
 
 
 def parse_oracle_verdict_from_log_text(content: str, source: str) -> str:
@@ -174,13 +227,19 @@ def parse_oracle_verdict_from_log_text(content: str, source: str) -> str:
             return "AddressSanitizerDoubleFree"
         if "use-after-free" in lower:
             return "AddressSanitizerUseAfterFree"
-        if "out-of-bounds" in lower or "heap-buffer-overflow" in lower:
+        if "invalid free" in lower:
+            return "AddressSanitizerInvalidFree"
+        if "heap-buffer-overflow" in lower or "stack-buffer-overflow" in lower or "global-buffer-overflow" in lower or "out-of-bounds" in lower:
             return "AddressSanitizerOutOfBounds"
+        if "leak" in lower:
+            return "AddressSanitizerLeak"
         return "Unknown"
 
     if source == "miri":
         if "undefined behavior" in lower or "ub" in lower:
             return "MiriUndefinedBehavior"
+        if "unsupported operation" in lower or "unsupported" in lower:
+            return "MiriUnsupported"
         return "Unknown"
 
     raise ValueError(f"unknown oracle source: {source}")
@@ -196,9 +255,6 @@ PRIMARY_LABEL_MAP = {
     "InsideUnsafePanic": "InsideUnsafePanic",
     "DangerousPathReached": "DangerousPathReached",
     "OracleConfirmedBug": "OracleConfirmedBug",
-    "OracleConfirmedDoubleFree": "OracleConfirmedBug",
-    "OracleConfirmedUseAfterFree": "OracleConfirmedBug",
-    "OracleConfirmedOutOfBounds": "OracleConfirmedBug",
     "SuspiciousCandidate": "SuspiciousCandidate",
     "Unknown": "Unknown",
 }
@@ -227,31 +283,24 @@ def normalize_relation_label(value: Any) -> Any:
     return RELATION_LABEL_MAP.get(str(value), str(value))
 
 
-def normalize_oracle_verdicts(values: Any) -> Any:
-    if values is None:
+def normalize_oracle_verdicts(value: Any) -> Any:
+    if value is None:
         return None
-
-    if isinstance(values, list) and values:
-        first = str(values[0])
-    else:
-        first = str(values)
-
-    mapping = {
-        "Unknown": "Unknown",
-        "DoubleFree": "AddressSanitizerDoubleFree",
-        "UseAfterFree": "AddressSanitizerUseAfterFree",
-        "OutOfBounds": "AddressSanitizerOutOfBounds",
-        "UndefinedBehavior": "MiriUndefinedBehavior",
-        "AddressSanitizerDoubleFree": "AddressSanitizerDoubleFree",
-        "AddressSanitizerUseAfterFree": "AddressSanitizerUseAfterFree",
-        "AddressSanitizerOutOfBounds": "AddressSanitizerOutOfBounds",
-        "MiriUndefinedBehavior": "MiriUndefinedBehavior",
-    }
-    return mapping.get(first, first)
+    return str(value)
 
 
 def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
-    # 新 schema
+    if "primary_label" in expected:
+        return {
+            "primary_label": normalize_primary_label(expected.get("primary_label")),
+            "relation": normalize_relation_label(expected.get("relation")),
+            "oracle_verdict": normalize_oracle_verdicts(expected.get("oracle_verdict")),
+            "harness_status": expected.get("harness_status"),
+            "reached_count": int(expected.get("reached_count", 0) or 0),
+            "notes": expected.get("notes"),
+        }
+
+    # 向后兼容旧 schema
     if "expected_primary_label" in expected:
         return {
             "primary_label": normalize_primary_label(expected.get("expected_primary_label")),
@@ -259,9 +308,9 @@ def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
             "oracle_verdict": normalize_oracle_verdicts(expected.get("expected_oracle")),
             "harness_status": expected.get("expected_harness_validity"),
             "reached_count": len(expected.get("expected_reached_dangerous_sites", [])),
+            "notes": None,
         }
 
-    # 中间 schema：expected_class / expected_relation / expected_reached_sites
     if "expected_class" in expected:
         return {
             "primary_label": normalize_primary_label(expected.get("expected_class")),
@@ -269,31 +318,17 @@ def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
             "oracle_verdict": normalize_oracle_verdicts(expected.get("expected_oracle")),
             "harness_status": expected.get("expected_harness_validity"),
             "reached_count": int(expected.get("expected_reached_sites", 0) or 0),
+            "notes": None,
         }
 
-    # 旧嵌套 schema：expected: { ... }
     old = expected.get("expected", {})
-    oracle_verdict = normalize_oracle_verdicts(old.get("oracle_verdicts"))
-
-    relation = expected.get("expected_relation")
-    if relation is None:
-        panic_observed = old.get("panic_observed")
-        reached = old.get("reached_dangerous_site")
-        if reached and panic_observed:
-            relation = "AfterUnsafe"
-        elif reached and not panic_observed:
-            relation = "NoneObserved"
-        elif (not reached) and panic_observed:
-            relation = "BeforeUnsafe"
-        else:
-            relation = None
-
     return {
         "primary_label": normalize_primary_label(old.get("class")),
-        "relation": normalize_relation_label(relation),
-        "oracle_verdict": oracle_verdict,
+        "relation": normalize_relation_label(expected.get("expected_relation")),
+        "oracle_verdict": normalize_oracle_verdicts(old.get("oracle_verdicts")),
         "harness_status": None,
         "reached_count": 1 if old.get("reached_dangerous_site") else 0,
+        "notes": None,
     }
 
 
@@ -308,4 +343,6 @@ def summarize_classification(case_name: str, suite: str, data: dict[str, Any]) -
         "distance_to_dangerous_site": data.get("distance_to_dangerous_site"),
         "reached_dangerous_sites": len(data.get("reached_dangerous_sites", [])),
         "notes_count": len(data.get("notes", {}).get("notes", [])),
+        "review_required": data.get("review_required"),
+        "schema_version": data.get("schema_version"),
     }

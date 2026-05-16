@@ -150,6 +150,10 @@ fn main() -> Result<()> {
             };
 
             let md = render_markdown_report(&site_map, &dpg, &trace, harness.as_ref(), &classification);
+            if let Some(parent) = out.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create parent dir {}", parent.display()))?;
+            }
             fs::write(&out, md).with_context(|| format!("failed to write {}", out.display()))?;
         }
     }
@@ -166,6 +170,10 @@ fn read_json<T: DeserializeOwned>(path: &PathBuf) -> Result<T> {
 }
 
 fn write_json<T: serde::Serialize>(path: &PathBuf, value: &T) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create parent dir {}", parent.display()))?;
+    }
     let content = serde_json::to_string_pretty(value)?;
     fs::write(path, content).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(())
