@@ -6,7 +6,7 @@ pub fn process(input: &[u8]) -> u8 {
     let mut out = 0u8;
 
     unsafe {
-        dpr_hit!("S0001");
+        dpr_hit!("S00001");
         let ptr = &mut out as *mut u8;
         if let Some(first) = input.first() {
             *ptr = *first;

@@ -317,22 +317,21 @@ def normalize_oracle_verdicts(value: Any) -> str:
         raise RuntimeError(f"invalid oracle_verdict: {value!r}")
     return value
 
- VALID_HARNESS_STATUS = {
-     "ConfirmedValid",
-     "LikelyValid",
-     "LikelyMisuse",
-     "Invalid",
-     "Unknown",
- }
+VALID_HARNESS_STATUS = {
+    "ConfirmedValid",
+    "LikelyValid",
+    "LikelyMisuse",
+    "Invalid",
+    "Unknown",
+}
 
- def normalize_harness_status(value: Any) -> str:
-     if value is None:
-         raise RuntimeError("harness_status must not be null")
-     value = str(value)
-     if value not in VALID_HARNESS_STATUS:
-         raise RuntimeError(f"invalid harness_status: {value!r}")
-     return value
-
+def normalize_harness_status(value: Any) -> str:
+    if value is None:
+        raise RuntimeError("harness_status must not be null")
+    value = str(value)
+    if value not in VALID_HARNESS_STATUS:
+        raise RuntimeError(f"invalid harness_status: {value!r}")
+    return value
 
 def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
     required = [
