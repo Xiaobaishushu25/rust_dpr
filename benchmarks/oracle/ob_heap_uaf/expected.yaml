@@ -1,0 +1,11 @@
+case_id: ob_heap_uaf
+category: oracle
+
+primary_label: OracleConfirmedBug
+relation: AfterUnsafe
+oracle_verdict: AddressSanitizerUseAfterFree
+harness_status: LikelyValid
+reached_count: 1
+
+notes:
+  - oracle should confirm heap use-after-free specifically

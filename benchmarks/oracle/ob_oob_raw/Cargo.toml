@@ -1,5 +1,5 @@
 [package]
-name = "mb_oob_raw"
+name = "ob_oob_raw"
 version = "0.1.0"
 edition = "2024"
 description = "memory bug - out-of-bounds (raw)"

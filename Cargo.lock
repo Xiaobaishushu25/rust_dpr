@@ -155,27 +155,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
-name = "mb_double_free"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
-
-[[package]]
-name = "mb_heap_uaf"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
-
-[[package]]
-name = "mb_oob_raw"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
-
-[[package]]
 name = "mb_panic_after_unsafe"
 version = "0.1.0"
 dependencies = [
@@ -205,6 +184,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
+name = "ob_double_free"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_heap_uaf"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_oob_raw"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -215,13 +215,6 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
-
-[[package]]
-name = "panic_before_unsafe"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
 
 [[package]]
 name = "proc-macro2"
@@ -396,6 +389,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tb_panic_before_unsafe"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
 ]
 
 [[package]]

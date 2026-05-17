@@ -1,8 +1,0 @@
-case_id: panic_before_unsafe
-expected:
-  class: BlockingPanic
-  oracle_confirmed: false
-  panic_observed: true
-  reached_dangerous_site: false
-notes:
-  - panic should happen before dangerous site is reached

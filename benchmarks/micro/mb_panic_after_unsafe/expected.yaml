@@ -1,6 +1,11 @@
 case_id: mb_panic_after_unsafe
-expected_class: PanicAfterUnsafe
-expected_relation: AfterUnsafe
-expected_reached_sites: 1
+category: micro
+
+primary_label: PanicAfterUnsafe
+relation: AfterUnsafe
+oracle_verdict: Unknown
+harness_status: LikelyValid
+reached_count: 1
+
 notes:
   - panic happens after unsafe block is reached

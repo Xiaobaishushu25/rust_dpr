@@ -1,0 +1,11 @@
+case_id: ob_oob_raw
+category: oracle
+
+primary_label: OracleConfirmedBug
+relation: AfterUnsafe
+oracle_verdict: AddressSanitizerOutOfBounds
+harness_status: LikelyValid
+reached_count: 1
+
+notes:
+  - oracle should confirm out-of-bounds memory access specifically

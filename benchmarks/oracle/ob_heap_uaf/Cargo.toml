@@ -1,5 +1,5 @@
 [package]
-name = "mb_heap_uaf"
+name = "ob_heap_uaf"
 version = "0.1.0"
 edition = "2024"
 description = "memory bug - heap use-after-free"

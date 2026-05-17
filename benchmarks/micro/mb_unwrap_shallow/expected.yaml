@@ -1,9 +1,11 @@
 case_id: mb_unwrap_shallow
 category: micro
+
 primary_label: ContractPanic
 relation: NoneObserved
 oracle_verdict: Unknown
 harness_status: LikelyValid
 reached_count: 0
+
 notes:
   - shallow unwrap panic without unsafe

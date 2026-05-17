@@ -11,11 +11,11 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-report/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-trace/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/mb_double_free/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/rustdpr-oracle/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/mb_heap_uaf/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/mb_oob_raw/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/panic_before_unsafe/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_double_free/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_heap_uaf/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_oob_raw/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_panic_before_unsafe/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_before_unsafe/fuzz/target" />

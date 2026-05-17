@@ -1,5 +1,5 @@
 [package]
-name = "mb_double_free"
+name = "ob_double_free"
 version = "0.1.0"
 edition = "2024"
 

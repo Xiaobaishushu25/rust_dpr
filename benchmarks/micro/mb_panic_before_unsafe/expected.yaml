@@ -1,3 +1,6 @@
+case_id: mb_panic_before_unsafe
+category: micro
+
 primary_label: BlockingPanic
 relation: BeforeUnsafe
 oracle_verdict: Unknown

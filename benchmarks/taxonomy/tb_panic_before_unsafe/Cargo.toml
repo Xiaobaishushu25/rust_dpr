@@ -1,5 +1,5 @@
 [package]
-name = "panic_before_unsafe"
+name = "tb_panic_before_unsafe"
 version = "0.1.0"
 edition = "2024"
 
