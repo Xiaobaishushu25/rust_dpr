@@ -1,5 +1,6 @@
 use rustdpr_core::{
-    DangerousPathGraph, DpgEdge, DpgEdgeKind, DpgNode, DpgNodeKind, FunctionIndex, SiteMap,
+    normalize_symbol, DangerousKind, DangerousPathGraph, DpgEdge, DpgEdgeKind, DpgNode,
+    DpgNodeKind, FunctionIndex, SiteMap,
 };
 use std::collections::BTreeSet;
 
@@ -7,8 +8,20 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
     let mut seen_nodes = BTreeSet::new();
+    let mut seen_edges = BTreeSet::new();
 
     for f in &function_index.functions {
+        insert_node(
+            &mut nodes,
+            &mut seen_nodes,
+            DpgNode {
+                id: f.function_id.clone(),
+                label: f.function_id.clone(),
+                kind: DpgNodeKind::Function,
+                normalized_id: normalize_symbol(&f.function_id),
+            },
+        );
+
         if f.is_public {
             let public_api_id = format!("api::{}", f.function_id);
             insert_node(
@@ -18,34 +31,17 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
                     id: public_api_id.clone(),
                     label: f.function_id.clone(),
                     kind: DpgNodeKind::PublicApi,
+                    normalized_id: normalize_symbol(&public_api_id),
                 },
             );
-            insert_node(
-                &mut nodes,
-                &mut seen_nodes,
-                DpgNode {
-                    id: f.function_id.clone(),
-                    label: f.function_id.clone(),
-                    kind: DpgNodeKind::Function,
-                },
-            );
-            edges.push(DpgEdge {
-                from: public_api_id,
-                to: f.function_id.clone(),
-                kind: DpgEdgeKind::Exposes,
-                confidence: 1.0,
-                static_or_dynamic: "static".into(),
-                support_count: 1,
-            });
-        } else {
-            insert_node(
-                &mut nodes,
-                &mut seen_nodes,
-                DpgNode {
-                    id: f.function_id.clone(),
-                    label: f.function_id.clone(),
-                    kind: DpgNodeKind::Function,
-                },
+            insert_edge(
+                &mut edges,
+                &mut seen_edges,
+                public_api_id,
+                f.function_id.clone(),
+                DpgEdgeKind::Exposes,
+                1.0,
+                "static",
             );
         }
     }
@@ -58,6 +54,7 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
                 id: edge.caller.clone(),
                 label: edge.caller.clone(),
                 kind: DpgNodeKind::Function,
+                normalized_id: normalize_symbol(&edge.caller),
             },
         );
         insert_node(
@@ -67,26 +64,37 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
                 id: edge.callee.clone(),
                 label: edge.callee.clone(),
                 kind: DpgNodeKind::Function,
+                normalized_id: normalize_symbol(&edge.callee),
             },
         );
-        edges.push(DpgEdge {
-            from: edge.caller.clone(),
-            to: edge.callee.clone(),
-            kind: DpgEdgeKind::Calls,
-            confidence: 0.7,
-            static_or_dynamic: "static".into(),
-            support_count: 1,
-        });
+        insert_edge(
+            &mut edges,
+            &mut seen_edges,
+            edge.caller.clone(),
+            edge.callee.clone(),
+            DpgEdgeKind::Calls,
+            0.7,
+            "static",
+        );
     }
 
     for ds in &site_map.dangerous_sites {
+        let node_kind = if matches!(
+            ds.kind,
+            DangerousKind::FfiBoundary | DangerousKind::FfiUnwindBoundary | DangerousKind::FfiDeclaration
+        ) {
+            DpgNodeKind::FfiBoundary
+        } else {
+            DpgNodeKind::DangerousSite
+        };
         insert_node(
             &mut nodes,
             &mut seen_nodes,
             DpgNode {
                 id: ds.site_id.clone(),
-                label: format!("{:?}", ds.kind),
-                kind: DpgNodeKind::DangerousSite,
+                label: format!("{:?}:{:?}", ds.category, ds.kind),
+                kind: node_kind,
+                normalized_id: normalize_symbol(&ds.site_id),
             },
         );
         insert_node(
@@ -96,16 +104,18 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
                 id: ds.enclosing_fn.clone(),
                 label: ds.enclosing_fn.clone(),
                 kind: DpgNodeKind::Function,
+                normalized_id: normalize_symbol(&ds.enclosing_fn),
             },
         );
-        edges.push(DpgEdge {
-            from: ds.enclosing_fn.clone(),
-            to: ds.site_id.clone(),
-            kind: DpgEdgeKind::ContainsDangerous,
-            confidence: 1.0,
-            static_or_dynamic: "static".into(),
-            support_count: 1,
-        });
+        insert_edge(
+            &mut edges,
+            &mut seen_edges,
+            ds.enclosing_fn.clone(),
+            ds.site_id.clone(),
+            DpgEdgeKind::ContainsDangerous,
+            1.0,
+            "static",
+        );
     }
 
     for ps in &site_map.panic_sites {
@@ -116,6 +126,7 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
                 id: ps.panic_id.clone(),
                 label: format!("{:?}", ps.kind),
                 kind: DpgNodeKind::PanicSite,
+                normalized_id: normalize_symbol(&ps.panic_id),
             },
         );
         insert_node(
@@ -125,23 +136,73 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
                 id: ps.enclosing_fn.clone(),
                 label: ps.enclosing_fn.clone(),
                 kind: DpgNodeKind::Function,
+                normalized_id: normalize_symbol(&ps.enclosing_fn),
             },
         );
-        edges.push(DpgEdge {
-            from: ps.enclosing_fn.clone(),
-            to: ps.panic_id.clone(),
-            kind: DpgEdgeKind::ContainsPanic,
-            confidence: 1.0,
-            static_or_dynamic: "static".into(),
-            support_count: 1,
-        });
+        insert_edge(
+            &mut edges,
+            &mut seen_edges,
+            ps.enclosing_fn.clone(),
+            ps.panic_id.clone(),
+            DpgEdgeKind::ContainsPanic,
+            1.0,
+            "static",
+        );
+
+        for ds in site_map.dangerous_sites.iter().filter(|s| s.enclosing_fn == ps.enclosing_fn) {
+            let (from, to, kind) = if ps.span.line_end < ds.span.line_start {
+                (ps.panic_id.clone(), ds.site_id.clone(), DpgEdgeKind::BlockedByPanic)
+            } else if ds.span.line_end < ps.span.line_start {
+                (ds.site_id.clone(), ps.panic_id.clone(), DpgEdgeKind::ObservedAfter)
+            } else {
+                (ds.site_id.clone(), ps.panic_id.clone(), DpgEdgeKind::InsideSameUnsafeRegion)
+            };
+            insert_edge(&mut edges, &mut seen_edges, from, to, kind, 0.8, "static-locality");
+        }
     }
 
-    DangerousPathGraph { nodes, edges }
+    let mut graph = DangerousPathGraph {
+        nodes,
+        edges,
+        reachability: vec![],
+        normalization_notes: vec![
+            "symbol ids are normalized by lower-casing, stripping api:: prefix, and normalizing path separators".to_string(),
+        ],
+    };
+    graph.normalize_all();
+    graph.compute_reachability();
+    graph
 }
 
-fn insert_node(nodes: &mut Vec<DpgNode>, seen: &mut BTreeSet<String>, node: DpgNode) {
+fn insert_node(nodes: &mut Vec<DpgNode>, seen: &mut BTreeSet<String>, mut node: DpgNode) {
+    if node.normalized_id.is_empty() {
+        node.normalized_id = normalize_symbol(&node.id);
+    }
     if seen.insert(node.id.clone()) {
         nodes.push(node);
+    }
+}
+
+fn insert_edge(
+    edges: &mut Vec<DpgEdge>,
+    seen: &mut BTreeSet<String>,
+    from: String,
+    to: String,
+    kind: DpgEdgeKind,
+    confidence: f32,
+    static_or_dynamic: &str,
+) {
+    let key = format!("{}->{:?}->{}", from, kind, to);
+    if seen.insert(key) {
+        edges.push(DpgEdge {
+            normalized_from: normalize_symbol(&from),
+            normalized_to: normalize_symbol(&to),
+            from,
+            to,
+            kind,
+            confidence,
+            static_or_dynamic: static_or_dynamic.to_string(),
+            support_count: 1,
+        });
     }
 }

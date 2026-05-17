@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{ExprCall, ExprMethodCall, ExprPath, ExprUnsafe, File};
+use syn::{ExprCall, ExprMethodCall, ExprPath, ExprUnary, ExprUnsafe, File, UnOp};
 use walkdir::WalkDir;
 
 pub fn analyze_harness_validity(harness_path: &Path) -> Result<HarnessValidityReport> {
@@ -141,6 +141,24 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
         if let syn::Expr::Path(expr_path) = &*node.func {
             let callee = Self::path_to_string(expr_path).to_lowercase();
 
+            if callee.contains("rustdpr_trace::hit") || callee == "hit" || callee.ends_with("::hit") {
+                self.add(
+                    node,
+                    "manual-hit-in-harness",
+                    "medium",
+                    "harness manually emits a dangerous-site hit; prefer library-side site ids",
+                );
+            }
+
+            if callee.starts_with("unsafe_") || callee.contains("::unsafe_") || callee.contains("unchecked") {
+                self.add(
+                    node,
+                    "target-api-unsafe-or-unchecked-call",
+                    "high",
+                    "harness calls an unsafe/unchecked target API or helper; verify caller obligations",
+                );
+            }
+
             if callee.contains("null") {
                 self.add(
                     node,
@@ -215,6 +233,19 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
         }
 
         visit::visit_expr_call(self, node);
+    }
+
+
+    fn visit_expr_unary(&mut self, node: &'ast ExprUnary) {
+        if matches!(node.op, UnOp::Deref(_)) {
+            self.add(
+                node,
+                "raw-deref-in-harness-candidate",
+                "high",
+                "harness dereferences through unary *; verify this is not constructing invalid target state",
+            );
+        }
+        visit::visit_expr_unary(self, node);
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {

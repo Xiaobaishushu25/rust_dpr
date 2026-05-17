@@ -1,7 +1,10 @@
-use rustdpr_trace::install_panic_hook;
+use rustdpr_trace::{dpr_function, install_panic_hook};
+
+pub const FN_PARSE: &str = "crate::parse";
 
 pub fn parse(input: &[u8]) -> u8 {
     install_panic_hook();
+    let _guard = dpr_function!(FN_PARSE);
     let first = input.first().unwrap();
     *first
 }

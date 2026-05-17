@@ -3,6 +3,7 @@ use crate::label::{PrimaryLabel, RelationLabel};
 use crate::schema_version::RUSTDPR_SCHEMA_VERSION;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct SpanInfo {
@@ -11,15 +12,60 @@ pub struct SpanInfo {
     pub line_end: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CrateMeta {
+    pub name: String,
+    pub version: String,
+    pub manifest_path: PathBuf,
+    pub workspace_root: PathBuf,
+    pub targets: Vec<TargetMeta>,
+    pub features: BTreeMap<String, Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TargetMeta {
+    pub name: String,
+    pub kind: Vec<String>,
+    pub src_path: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum DangerousCategory {
+    #[default]
+    UnsafeRust,
+    RawPointer,
+    Ffi,
+    TypePunning,
+    AllocationOwnership,
+    Initialization,
+    DropInvariant,
+    RuntimeCheck,
+    PanicBoundary,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum EvidenceStrength {
+    Confirmed,
+    Strong,
+    Medium,
+    Weak,
+    #[default]
+    Heuristic,
+    Unsupported,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum DangerousKind {
     #[default]
     UnsafeFn,
     UnsafeBlock,
     RawDerefCandidate,
+    RawAddrCandidate,
     FfiDeclaration,
     FfiCallCandidate,
     FfiBoundary,
+    FfiUnwindBoundary,
     Transmute,
     TransmuteCopy,
     ManualAllocCandidate,
@@ -27,25 +73,100 @@ pub enum DangerousKind {
     BoxFromRaw,
     BoxIntoRaw,
     FromRawParts,
+    VecFromRawParts,
+    NonNullNewUnchecked,
     MemForget,
     ManuallyDropCandidate,
     MaybeUninitCandidate,
+    AssumeInitCandidate,
     PtrReadCandidate,
     PtrWriteCandidate,
     CopyNonOverlappingCandidate,
     IndexingCandidate,
     DropSensitiveCandidate,
+    SetLenCandidate,
+    UnsafeTraitImpl,
+    TargetApiMisuseCandidate,
+}
+
+impl DangerousKind {
+    pub fn category(&self) -> DangerousCategory {
+        match self {
+            DangerousKind::UnsafeFn | DangerousKind::UnsafeBlock | DangerousKind::UnsafeTraitImpl => {
+                DangerousCategory::UnsafeRust
+            }
+            DangerousKind::RawDerefCandidate
+            | DangerousKind::RawAddrCandidate
+            | DangerousKind::PtrReadCandidate
+            | DangerousKind::PtrWriteCandidate
+            | DangerousKind::CopyNonOverlappingCandidate
+            | DangerousKind::NonNullNewUnchecked => DangerousCategory::RawPointer,
+            DangerousKind::FfiDeclaration
+            | DangerousKind::FfiCallCandidate
+            | DangerousKind::FfiBoundary
+            | DangerousKind::FfiUnwindBoundary => DangerousCategory::Ffi,
+            DangerousKind::Transmute | DangerousKind::TransmuteCopy => DangerousCategory::TypePunning,
+            DangerousKind::ManualAllocCandidate
+            | DangerousKind::ManualFreeCandidate
+            | DangerousKind::BoxFromRaw
+            | DangerousKind::BoxIntoRaw
+            | DangerousKind::FromRawParts
+            | DangerousKind::VecFromRawParts => DangerousCategory::AllocationOwnership,
+            DangerousKind::MaybeUninitCandidate | DangerousKind::AssumeInitCandidate => {
+                DangerousCategory::Initialization
+            }
+            DangerousKind::ManuallyDropCandidate
+            | DangerousKind::DropSensitiveCandidate
+            | DangerousKind::SetLenCandidate => DangerousCategory::DropInvariant,
+            DangerousKind::IndexingCandidate => DangerousCategory::RuntimeCheck,
+            DangerousKind::MemForget => DangerousCategory::DropInvariant,
+            DangerousKind::TargetApiMisuseCandidate => DangerousCategory::PanicBoundary,
+        }
+    }
+
+    pub fn default_weight(&self) -> f32 {
+        match self {
+            DangerousKind::UnsafeFn | DangerousKind::UnsafeBlock => 1.0,
+            DangerousKind::RawDerefCandidate
+            | DangerousKind::PtrReadCandidate
+            | DangerousKind::PtrWriteCandidate
+            | DangerousKind::CopyNonOverlappingCandidate
+            | DangerousKind::FromRawParts
+            | DangerousKind::VecFromRawParts
+            | DangerousKind::BoxFromRaw
+            | DangerousKind::Transmute
+            | DangerousKind::TransmuteCopy
+            | DangerousKind::AssumeInitCandidate
+            | DangerousKind::FfiUnwindBoundary => 1.0,
+            DangerousKind::FfiDeclaration | DangerousKind::FfiBoundary | DangerousKind::FfiCallCandidate => 0.9,
+            DangerousKind::ManualAllocCandidate
+            | DangerousKind::ManualFreeCandidate
+            | DangerousKind::SetLenCandidate => 0.8,
+            DangerousKind::BoxIntoRaw
+            | DangerousKind::ManuallyDropCandidate
+            | DangerousKind::MaybeUninitCandidate
+            | DangerousKind::NonNullNewUnchecked => 0.75,
+            DangerousKind::MemForget | DangerousKind::DropSensitiveCandidate => 0.6,
+            DangerousKind::RawAddrCandidate => 0.4,
+            DangerousKind::IndexingCandidate => 0.2,
+            DangerousKind::UnsafeTraitImpl | DangerousKind::TargetApiMisuseCandidate => 0.7,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum PanicKind {
     PanicMacro,
     AssertMacro,
+    DebugAssertMacro,
     UnwrapLike,
     ExpectLike,
     TodoMacro,
     UnimplementedMacro,
+    UnreachableMacro,
     IndexingPanicCandidate,
+    RuntimeCheckCandidate,
+    FfiUnwindPanicCandidate,
     #[default]
     Unknown,
 }
@@ -59,6 +180,12 @@ pub struct DangerousSite {
     pub span: SpanInfo,
     pub matched_by_rule: String,
     pub confidence: String,
+
+    #[serde(default)]
+    pub category: DangerousCategory,
+
+    #[serde(default)]
+    pub evidence_strength: EvidenceStrength,
 
     #[serde(default)]
     pub obligation: Option<String>,
@@ -95,6 +222,12 @@ pub struct PanicSite {
 
     #[serde(default)]
     pub runtime_generated: bool,
+
+    #[serde(default)]
+    pub macro_expanded: bool,
+
+    #[serde(default)]
+    pub evidence_strength: EvidenceStrength,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -103,6 +236,37 @@ pub struct SiteMap {
     pub crate_root: String,
     pub dangerous_sites: Vec<DangerousSite>,
     pub panic_sites: Vec<PanicSite>,
+
+    #[serde(default)]
+    pub taxonomy: TaxonomySummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TaxonomySummary {
+    #[serde(default)]
+    pub dangerous_by_category: BTreeMap<DangerousCategory, usize>,
+    #[serde(default)]
+    pub dangerous_by_kind: BTreeMap<String, usize>,
+    #[serde(default)]
+    pub panic_by_kind: BTreeMap<String, usize>,
+    #[serde(default)]
+    pub evidence_by_strength: BTreeMap<EvidenceStrength, usize>,
+}
+
+impl SiteMap {
+    pub fn refresh_taxonomy(&mut self) {
+        let mut summary = TaxonomySummary::default();
+        for site in &self.dangerous_sites {
+            *summary.dangerous_by_category.entry(site.category.clone()).or_insert(0) += 1;
+            *summary.dangerous_by_kind.entry(format!("{:?}", site.kind)).or_insert(0) += 1;
+            *summary.evidence_by_strength.entry(site.evidence_strength.clone()).or_insert(0) += 1;
+        }
+        for site in &self.panic_sites {
+            *summary.panic_by_kind.entry(format!("{:?}", site.kind)).or_insert(0) += 1;
+            *summary.evidence_by_strength.entry(site.evidence_strength.clone()).or_insert(0) += 1;
+        }
+        self.taxonomy = summary;
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -210,17 +374,19 @@ impl TraceLog {
     }
 
     pub fn hit_count(&self) -> usize {
-        self.events
-            .iter()
-            .filter(|e| matches!(e, TraceEvent::Hit { .. }))
-            .count()
+        self.events.iter().filter(|e| matches!(e, TraceEvent::Hit { .. })).count()
+    }
+
+    pub fn enter_count(&self) -> usize {
+        self.events.iter().filter(|e| matches!(e, TraceEvent::EnterFunction { .. })).count()
+    }
+
+    pub fn exit_count(&self) -> usize {
+        self.events.iter().filter(|e| matches!(e, TraceEvent::ExitFunction { .. })).count()
     }
 
     pub fn panic_count(&self) -> usize {
-        self.events
-            .iter()
-            .filter(|e| matches!(e, TraceEvent::Panic { .. }))
-            .count()
+        self.events.iter().filter(|e| matches!(e, TraceEvent::Panic { .. })).count()
     }
 
     pub fn has_panic(&self) -> bool {
@@ -247,6 +413,17 @@ pub enum OracleVerdict {
     MiriUndefinedBehavior,
     MiriUnsupported,
     OracleTimeout,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum OracleEvidenceStrength {
+    Confirmed,
+    StrongHeuristic,
+    WeakHeuristic,
+    TargetApiMisuse,
+    Unsupported,
+    #[default]
+    Unknown,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -287,6 +464,13 @@ pub struct ClassificationResult {
     pub nearest_dangerous_site: Option<String>,
     pub distance_to_dangerous_site: Option<u32>,
     pub oracle_verdict: OracleVerdict,
+
+    #[serde(default)]
+    pub oracle_evidence_strength: OracleEvidenceStrength,
+
+    #[serde(default)]
+    pub target_api_misuse: bool,
+
     pub harness_status: ValidityStatus,
     pub confidence: f32,
     pub review_required: bool,

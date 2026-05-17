@@ -86,9 +86,7 @@ dependencies = [
 name = "mb_unwrap_shallow"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "rustdpr-trace",
- "serde_json",
 ]
 
 [[package]]

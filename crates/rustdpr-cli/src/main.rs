@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use rustdpr_analyzer::{analyze_crate, analyze_harness_validity, build_dpg};
+use rustdpr_analyzer::{analyze_crate, analyze_harness_validity, build_dpg, collect_metadata};
 use rustdpr_classifier::classify_execution;
 use rustdpr_core::{DangerousPathGraph, HarnessValidityReport, SiteMap, TraceLog};
 use rustdpr_oracle::{parse_asan_log, parse_miri_log};
@@ -19,6 +19,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    Collect {
+        #[arg(long, alias = "crate")]
+        crate_root: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     AnalyzeSites {
         #[arg(long)]
         crate_root: PathBuf,
@@ -77,6 +83,10 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Collect { crate_root, out } => {
+            let meta = collect_metadata(&crate_root)?;
+            write_json(&out, &meta)?;
+        }
         Commands::AnalyzeSites {
             crate_root,
             out,

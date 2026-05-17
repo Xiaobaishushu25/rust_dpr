@@ -1,6 +1,11 @@
-use rustdpr_trace::hit;
+use rustdpr_trace::{dpr_function, dpr_hit};
+
+pub const SITE_RAW_DEREF: &str = "S00001";
+pub const FN_TRIGGER: &str = "crate::trigger";
 
 pub fn trigger(flag: bool) {
+    let _guard = dpr_function!(FN_TRIGGER);
+
     if flag {
         panic!("guard panic before unsafe");
     }
@@ -9,7 +14,7 @@ pub fn trigger(flag: bool) {
     let p = &x as *const u8;
 
     unsafe {
-        hit("S0001");
+        dpr_hit!(SITE_RAW_DEREF);
         let _ = *p;
     }
 }

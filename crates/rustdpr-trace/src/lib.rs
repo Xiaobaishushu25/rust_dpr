@@ -98,6 +98,22 @@ pub fn exit_function(function: &'static str) {
     write_event(&event);
 }
 
+pub struct FunctionTraceGuard {
+    function: &'static str,
+}
+
+impl FunctionTraceGuard {
+    pub fn new(function: &'static str) -> Self {
+        Self { function }
+    }
+}
+
+impl Drop for FunctionTraceGuard {
+    fn drop(&mut self) {
+        exit_function(self.function);
+    }
+}
+
 pub fn hit(site_id: &'static str) {
     let event = TraceEvent::Hit {
         site_id: site_id.to_string(),
