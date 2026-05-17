@@ -1,0 +1,34 @@
+case_id: <case_name>
+category: <micro|oracle|taxonomy|regression|realworld>
+
+primary_label: <PrimaryLabel>
+  Noise
+  ContractPanic
+  HarnessMisuse
+  BlockingPanic
+  PanicAfterUnsafe
+  InsideUnsafePanic
+  DangerousPathReached
+  OracleConfirmedBug
+  SuspiciousCandidate
+  Unknown
+relation: <RelationLabel>
+  NoneObserved
+  BeforeUnsafe
+  AfterUnsafe
+  InsideUnsafe
+  AdjacentToUnsafe
+  FfiBoundary
+  Unknown
+oracle_verdict: <OracleVerdict>
+harness_status: <ValidityStatus>
+  ConfirmedValid
+  LikelyValid
+  LikelyMisuse
+  Invalid
+  Unknown
+reached_count: <int>
+
+notes:
+  - <free text note 1>
+  - <free text note 2>

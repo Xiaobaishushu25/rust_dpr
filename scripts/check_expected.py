@@ -1,87 +1,151 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 
-from common import BENCHMARKS_DIR, DATA_DIR, load_yaml, normalize_expected_schema, read_json
+from common import (
+    BENCHMARKS_DIR,
+    discover_cases,
+    load_yaml,
+    normalize_expected_schema,
+    normalize_oracle_verdicts,
+    normalize_primary_label,
+    normalize_relation_label,
+    read_json,
+    summarize_classification,
+    suite_case_data_dir,
+    validate_result_schema,
+    write_json,
+)
 
 
-def check_suite(suite: str) -> bool:
-    suite_dir = BENCHMARKS_DIR / suite
-    data_suite_dir = DATA_DIR / suite
-    if not suite_dir.exists():
-        return False
+def compare_case(suite: str, case_dir: Path) -> dict:
+    case_name = case_dir.name
+    expected_path = case_dir / "expected.yaml"
+    classification_path = suite_case_data_dir(suite, case_name) / "classification.json"
 
-    failed = False
+    result = {
+        "suite": suite,
+        "case": case_name,
+        "status": "PASS",
+        "mismatches": [],
+        "expected_path": str(expected_path),
+        "classification_path": str(classification_path),
+    }
 
-    for case_dir in sorted([p for p in suite_dir.iterdir() if p.is_dir()]):
-        case_name = case_dir.name
-        expected_path = case_dir / "expected.yaml"
-        result_path = data_suite_dir / case_name / "classification.json"
+    if not expected_path.exists():
+        result["status"] = "ERROR"
+        result["mismatches"].append("expected.yaml not found")
+        return result
 
-        if not expected_path.exists():
-            print(f"[SKIP] {suite}/{case_name}: missing expected.yaml")
-            continue
-        if not result_path.exists():
-            print(f"[SKIP] {suite}/{case_name}: missing classification.json")
-            continue
+    if not classification_path.exists():
+        result["status"] = "ERROR"
+        result["mismatches"].append("classification.json not found")
+        return result
 
-        expected = normalize_expected_schema(load_yaml(expected_path))
-        result = read_json(result_path)
+    expected_raw = load_yaml(expected_path) or {}
+    expected = normalize_expected_schema(expected_raw)
 
-        exp_class = expected.get("primary_label")
-        exp_relation = expected.get("relation")
-        exp_oracle = expected.get("oracle_verdict")
-        exp_harness = expected.get("harness_status")
-        exp_reached = expected.get("reached_count")
+    classification = read_json(classification_path)
+    validate_result_schema(
+        classification,
+        required=[
+            "schema_version",
+            "primary_label",
+            "relation",
+            "oracle_verdict",
+            "harness_status",
+            "confidence",
+            "review_required",
+        ],
+        label=f"{suite}/{case_name}/classification",
+    )
 
-        got_class = result.get("primary_label")
-        got_relation = result.get("relation")
-        got_oracle = result.get("oracle_verdict")
-        got_harness = result.get("harness_status")
-        got_reached = len(result.get("reached_dangerous_sites", []))
+    actual_primary = normalize_primary_label(classification.get("primary_label"))
+    actual_relation = normalize_relation_label(classification.get("relation"))
+    actual_oracle = normalize_oracle_verdicts(classification.get("oracle_verdict"))
+    actual_harness = classification.get("harness_status")
+    actual_reached_count = len(classification.get("reached_dangerous_sites", []))
 
-        problems = []
-        if exp_class is not None and exp_class != got_class:
-            problems.append(f"class expected={exp_class} got={got_class}")
-        if exp_relation is not None and exp_relation != got_relation:
-            problems.append(f"relation expected={exp_relation} got={got_relation}")
-        if exp_oracle is not None and exp_oracle != got_oracle:
-            problems.append(f"oracle expected={exp_oracle} got={got_oracle}")
-        if exp_harness is not None and exp_harness != got_harness:
-            problems.append(f"harness expected={exp_harness} got={got_harness}")
-        if exp_reached is not None and exp_reached != got_reached:
-            problems.append(f"reached_count expected={exp_reached} got={got_reached}")
+    checks = [
+        ("primary_label", expected["primary_label"], actual_primary),
+        ("relation", expected["relation"], actual_relation),
+        ("oracle_verdict", expected["oracle_verdict"], actual_oracle),
+        ("harness_status", expected["harness_status"], actual_harness),
+        ("reached_count", expected["reached_count"], actual_reached_count),
+    ]
 
-        if problems:
-            failed = True
-            print(f"[FAIL] {suite}/{case_name}")
-            for p in problems:
-                print(f"  - {p}")
-        else:
-            print(f"[PASS] {suite}/{case_name}")
+    for field, exp, act in checks:
+        if exp != act:
+            result["status"] = "FAIL"
+            result["mismatches"].append(f"{field}: expected={exp!r}, actual={act!r}")
 
-    return failed
+    result["summary"] = summarize_classification(case_name, suite, classification)
+    result["expected"] = expected
+    return result
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate classification.json against expected.yaml")
-    parser.add_argument(
-        "--suite",
-        choices=["micro", "oracle", "taxonomy"],
-        default=None,
-        help="check one suite only; default checks all",
-    )
+    parser = argparse.ArgumentParser(description="Check expected labels against classification outputs")
+    parser.add_argument("--suite", choices=["micro", "oracle", "taxonomy"], required=True)
+    parser.add_argument("--case", default=None, help="check only one case")
+    parser.add_argument("--strict", action="store_true", help="exit non-zero on FAIL or ERROR")
+    parser.add_argument("--summary-json", default=None)
     args = parser.parse_args()
 
-    suites = [args.suite] if args.suite else ["micro", "oracle", "taxonomy"]
+    if args.case:
+        cases = [BENCHMARKS_DIR / args.suite / args.case]
+        if not cases[0].exists():
+            raise SystemExit(f"case not found: {cases[0]}")
+    else:
+        cases = discover_cases(args.suite)
 
-    failed = False
-    for suite in suites:
-        suite_failed = check_suite(suite)
-        failed = failed or suite_failed
+    results = []
+    pass_count = 0
+    fail_count = 0
+    error_count = 0
 
-    return 1 if failed else 0
+    for case_dir in cases:
+        res = compare_case(args.suite, case_dir)
+        results.append(res)
+
+        status = res["status"]
+        if status == "PASS":
+            pass_count += 1
+            print(f"[PASS] {res['suite']}/{res['case']}")
+        elif status == "FAIL":
+            fail_count += 1
+            print(f"[FAIL] {res['suite']}/{res['case']}")
+            for m in res["mismatches"]:
+                print(f"  - {m}")
+        else:
+            error_count += 1
+            print(f"[ERROR] {res['suite']}/{res['case']}")
+            for m in res["mismatches"]:
+                print(f"  - {m}")
+
+    summary = {
+        "suite": args.suite,
+        "total": len(results),
+        "pass": pass_count,
+        "fail": fail_count,
+        "error": error_count,
+        "results": results,
+    }
+
+    if args.summary_json:
+        write_json(Path(args.summary_json), summary)
+
+    print("\n[summary]")
+    print(f"suite : {args.suite}")
+    print(f"total : {len(results)}")
+    print(f"pass  : {pass_count}")
+    print(f"fail  : {fail_count}")
+    print(f"error : {error_count}")
+
+    if args.strict and (fail_count > 0 or error_count > 0):
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

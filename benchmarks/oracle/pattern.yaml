@@ -1,0 +1,11 @@
+case_id: ob_double_free
+category: oracle
+
+primary_label: OracleConfirmedBug
+relation: AfterUnsafe
+oracle_verdict: AddressSanitizerDoubleFree
+harness_status: LikelyValid
+reached_count: 1
+
+notes:
+  - oracle-confirmed double free

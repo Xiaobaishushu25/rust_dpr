@@ -1,24 +1,20 @@
 from __future__ import annotations
 
 import argparse
-import json
+from collections import Counter
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT_DIR / "data"
-
-
-def read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+from common import DATA_DIR, read_json, write_csv, write_json
 
 
 def collect_suite_rows(suite: str) -> list[dict]:
     suite_dir = DATA_DIR / suite
-    if not suite_dir.exists():
-        return []
+    rows = []
 
-    rows: list[dict] = []
-    for case_dir in sorted([p for p in suite_dir.iterdir() if p.is_dir()]):
+    if not suite_dir.exists():
+        return rows
+
+    for case_dir in sorted(p for p in suite_dir.iterdir() if p.is_dir()):
         classification_path = case_dir / "classification.json"
         if not classification_path.exists():
             continue
@@ -30,13 +26,13 @@ def collect_suite_rows(suite: str) -> list[dict]:
                 "case": case_dir.name,
                 "primary_label": data.get("primary_label"),
                 "relation": data.get("relation"),
-                "confidence": data.get("confidence"),
                 "oracle_verdict": data.get("oracle_verdict"),
                 "harness_status": data.get("harness_status"),
                 "distance_to_dangerous_site": data.get("distance_to_dangerous_site"),
                 "reached_dangerous_sites": len(data.get("reached_dangerous_sites", [])),
                 "review_required": data.get("review_required"),
-                "notes_count": len(data.get("notes", {}).get("notes", [])),
+                "confidence": data.get("confidence"),
+                "schema_version": data.get("schema_version"),
             }
         )
     return rows
@@ -44,51 +40,50 @@ def collect_suite_rows(suite: str) -> list[dict]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Collect RustDPR classification results")
-    parser.add_argument(
-        "--suite",
-        choices=["micro", "oracle", "taxonomy"],
-        default=None,
-        help="collect one suite only; default collects all",
-    )
-    parser.add_argument("--out-json", default=None, help="optional output JSON path")
-    parser.add_argument("--out-csv", default=None, help="optional output CSV path")
+    parser.add_argument("--suite", choices=["micro", "oracle", "taxonomy"], required=True)
+    parser.add_argument("--out-json", required=True)
+    parser.add_argument("--out-csv", required=True)
     args = parser.parse_args()
 
-    suites = [args.suite] if args.suite else ["micro", "oracle", "taxonomy"]
+    rows = collect_suite_rows(args.suite)
 
-    rows: list[dict] = []
-    for suite in suites:
-        rows.extend(collect_suite_rows(suite))
+    label_counter = Counter(row["primary_label"] for row in rows)
+    relation_counter = Counter(row["relation"] for row in rows)
+    oracle_counter = Counter(row["oracle_verdict"] for row in rows)
+    harness_counter = Counter(row["harness_status"] for row in rows)
 
-    if args.out_json:
-        out_json = Path(args.out_json)
-        out_json.parent.mkdir(parents=True, exist_ok=True)
-        out_json.write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
+    summary = {
+        "suite": args.suite,
+        "total_cases": len(rows),
+        "primary_label_counts": dict(label_counter),
+        "relation_counts": dict(relation_counter),
+        "oracle_verdict_counts": dict(oracle_counter),
+        "harness_status_counts": dict(harness_counter),
+        "rows": rows,
+    }
 
-    if args.out_csv:
-        import csv
+    write_json(Path(args.out_json), summary)
 
-        out_csv = Path(args.out_csv)
-        out_csv.parent.mkdir(parents=True, exist_ok=True)
-        fieldnames = [
-            "suite",
-            "case",
-            "primary_label",
-            "relation",
-            "confidence",
-            "oracle_verdict",
-            "harness_status",
-            "distance_to_dangerous_site",
-            "reached_dangerous_sites",
-            "review_required",
-            "notes_count",
-        ]
-        with out_csv.open("w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
+    fieldnames = [
+        "suite",
+        "case",
+        "primary_label",
+        "relation",
+        "oracle_verdict",
+        "harness_status",
+        "distance_to_dangerous_site",
+        "reached_dangerous_sites",
+        "review_required",
+        "confidence",
+        "schema_version",
+    ]
+    write_csv(Path(args.out_csv), rows, fieldnames)
 
-    print(json.dumps(rows, indent=2, ensure_ascii=False))
+    print("[done]")
+    print(f"suite       : {args.suite}")
+    print(f"total cases : {len(rows)}")
+    print(f"json        : {args.out_json}")
+    print(f"csv         : {args.out_csv}")
     return 0
 
 

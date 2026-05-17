@@ -1,9 +1,5 @@
-case_id: panic_before_unsafe
-category: taxonomy
-expected_primary_label: BlockingPanic
-expected_relation: BeforeUnsafe
-expected_oracle: Unknown
-expected_harness_validity: LikelyValid
-expected_reached_dangerous_sites: []
-notes:
-  - panic should happen before dangerous site is reached
+primary_label: BlockingPanic
+relation: BeforeUnsafe
+oracle_verdict: Unknown
+harness_status: LikelyValid
+reached_count: 0

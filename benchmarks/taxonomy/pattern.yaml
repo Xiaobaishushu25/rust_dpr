@@ -1,0 +1,11 @@
+case_id: tb_panic_before_unsafe
+category: taxonomy
+
+primary_label: BlockingPanic
+relation: BeforeUnsafe
+oracle_verdict: Unknown
+harness_status: LikelyValid
+reached_count: 0
+
+notes:
+  - panic occurs before dangerous site is reached

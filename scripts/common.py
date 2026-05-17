@@ -245,20 +245,6 @@ def parse_oracle_verdict_from_log_text(content: str, source: str) -> str:
     raise ValueError(f"unknown oracle source: {source}")
 
 
-PRIMARY_LABEL_MAP = {
-    "Noise": "Noise",
-    "NormalContractPanic": "ContractPanic",
-    "ContractPanic": "ContractPanic",
-    "HarnessMisuse": "HarnessMisuse",
-    "BlockingPanic": "BlockingPanic",
-    "PanicAfterUnsafe": "PanicAfterUnsafe",
-    "InsideUnsafePanic": "InsideUnsafePanic",
-    "DangerousPathReached": "DangerousPathReached",
-    "OracleConfirmedBug": "OracleConfirmedBug",
-    "SuspiciousCandidate": "SuspiciousCandidate",
-    "Unknown": "Unknown",
-}
-
 RELATION_LABEL_MAP = {
     "NoneObserved": "NoneObserved",
     "NoDangerousSiteReached": "NoneObserved",
@@ -270,65 +256,107 @@ RELATION_LABEL_MAP = {
     "Unknown": "Unknown",
 }
 
+VALID_PRIMARY_LABELS = {
+    "Noise",
+    "ContractPanic",
+    "HarnessMisuse",
+    "BlockingPanic",
+    "PanicAfterUnsafe",
+    "InsideUnsafePanic",
+    "DangerousPathReached",
+    "OracleConfirmedBug",
+    "SuspiciousCandidate",
+    "Unknown",
+}
 
-def normalize_primary_label(value: Any) -> Any:
+VALID_RELATION_LABELS = {
+    "NoneObserved",
+    "BeforeUnsafe",
+    "AfterUnsafe",
+    "InsideUnsafe",
+    "AdjacentToUnsafe",
+    "FfiBoundary",
+    "Unknown",
+}
+
+VALID_ORACLE_VERDICTS = {
+    "Unknown",
+    "AddressSanitizerDoubleFree",
+    "AddressSanitizerUseAfterFree",
+    "AddressSanitizerOutOfBounds",
+    "AddressSanitizerInvalidFree",
+    "AddressSanitizerLeak",
+    "MiriUndefinedBehavior",
+    "MiriUnsupported",
+    "OracleTimeout",
+}
+
+def normalize_primary_label(value: Any) -> str:
     if value is None:
-        return None
-    return PRIMARY_LABEL_MAP.get(str(value), str(value))
+        raise RuntimeError("primary_label must not be null")
+    value = str(value)
+    if value not in VALID_PRIMARY_LABELS:
+        raise RuntimeError(f"invalid primary_label: {value!r}")
+    return value
 
 
-def normalize_relation_label(value: Any) -> Any:
+def normalize_relation_label(value: Any) -> str:
     if value is None:
-        return None
-    return RELATION_LABEL_MAP.get(str(value), str(value))
+        raise RuntimeError("relation must not be null")
+    value = str(value)
+    if value not in VALID_RELATION_LABELS:
+        raise RuntimeError(f"invalid relation: {value!r}")
+    return value
 
 
-def normalize_oracle_verdicts(value: Any) -> Any:
+def normalize_oracle_verdicts(value: Any) -> str:
     if value is None:
-        return None
-    return str(value)
+        raise RuntimeError("oracle_verdict must not be null")
+    value = str(value)
+    if value not in VALID_ORACLE_VERDICTS:
+        raise RuntimeError(f"invalid oracle_verdict: {value!r}")
+    return value
+
+ VALID_HARNESS_STATUS = {
+     "ConfirmedValid",
+     "LikelyValid",
+     "LikelyMisuse",
+     "Invalid",
+     "Unknown",
+ }
+
+ def normalize_harness_status(value: Any) -> str:
+     if value is None:
+         raise RuntimeError("harness_status must not be null")
+     value = str(value)
+     if value not in VALID_HARNESS_STATUS:
+         raise RuntimeError(f"invalid harness_status: {value!r}")
+     return value
 
 
 def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
-    if "primary_label" in expected:
-        return {
-            "primary_label": normalize_primary_label(expected.get("primary_label")),
-            "relation": normalize_relation_label(expected.get("relation")),
-            "oracle_verdict": normalize_oracle_verdicts(expected.get("oracle_verdict")),
-            "harness_status": expected.get("harness_status"),
-            "reached_count": int(expected.get("reached_count", 0) or 0),
-            "notes": expected.get("notes"),
-        }
+    required = [
+        "primary_label",
+        "relation",
+        "oracle_verdict",
+        "harness_status",
+        "reached_count",
+    ]
+    missing = [k for k in required if k not in expected]
+    if missing:
+        raise RuntimeError(
+            f"expected.yaml must use the new schema only; missing fields: {missing}"
+        )
 
-    # 向后兼容旧 schema
-    if "expected_primary_label" in expected:
-        return {
-            "primary_label": normalize_primary_label(expected.get("expected_primary_label")),
-            "relation": normalize_relation_label(expected.get("expected_relation")),
-            "oracle_verdict": normalize_oracle_verdicts(expected.get("expected_oracle")),
-            "harness_status": expected.get("expected_harness_validity"),
-            "reached_count": len(expected.get("expected_reached_dangerous_sites", [])),
-            "notes": None,
-        }
-
-    if "expected_class" in expected:
-        return {
-            "primary_label": normalize_primary_label(expected.get("expected_class")),
-            "relation": normalize_relation_label(expected.get("expected_relation")),
-            "oracle_verdict": normalize_oracle_verdicts(expected.get("expected_oracle")),
-            "harness_status": expected.get("expected_harness_validity"),
-            "reached_count": int(expected.get("expected_reached_sites", 0) or 0),
-            "notes": None,
-        }
-
-    old = expected.get("expected", {})
     return {
-        "primary_label": normalize_primary_label(old.get("class")),
-        "relation": normalize_relation_label(expected.get("expected_relation")),
-        "oracle_verdict": normalize_oracle_verdicts(old.get("oracle_verdicts")),
-        "harness_status": None,
-        "reached_count": 1 if old.get("reached_dangerous_site") else 0,
-        "notes": None,
+        "primary_label": normalize_primary_label(expected["primary_label"]),
+        "relation": normalize_relation_label(expected["relation"]),
+        "oracle_verdict": normalize_oracle_verdicts(expected["oracle_verdict"]),
+        "harness_status": normalize_harness_status(expected["harness_status"]),
+        "reached_count": int(expected["reached_count"]),
+        "notes": expected.get("notes"),
+        "case_id": expected.get("case_id"),
+        "category": expected.get("category"),
     }
 
 
