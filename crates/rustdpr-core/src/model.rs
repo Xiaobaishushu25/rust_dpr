@@ -477,6 +477,43 @@ pub struct ClassificationResult {
     pub notes: ClassificationNotes,
 }
 
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassificationOptions {
+    #[serde(default = "default_true")]
+    pub use_dynamic_trace: bool,
+    #[serde(default = "default_true")]
+    pub use_dpg_adjacency: bool,
+    #[serde(default = "default_true")]
+    pub use_harness_validity: bool,
+    #[serde(default = "default_true")]
+    pub use_oracle: bool,
+    #[serde(default)]
+    pub panic_only: bool,
+    #[serde(default)]
+    pub static_only: bool,
+    #[serde(default = "default_true")]
+    pub weighted_sites: bool,
+}
+
+impl Default for ClassificationOptions {
+    fn default() -> Self {
+        Self {
+            use_dynamic_trace: true,
+            use_dpg_adjacency: true,
+            use_harness_validity: true,
+            use_oracle: true,
+            panic_only: false,
+            static_only: false,
+            weighted_sites: true,
+        }
+    }
+}
+
 fn default_schema_version() -> String {
     RUSTDPR_SCHEMA_VERSION.to_string()
+}
+
+fn default_true() -> bool {
+    true
 }

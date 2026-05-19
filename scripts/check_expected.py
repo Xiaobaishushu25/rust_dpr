@@ -5,6 +5,7 @@ from pathlib import Path
 
 from common import (
     BENCHMARKS_DIR,
+    SUITES,
     discover_cases,
     load_yaml,
     normalize_expected_schema,
@@ -12,17 +13,30 @@ from common import (
     normalize_primary_label,
     normalize_relation_label,
     read_json,
-    summarize_classification,
+    run_output_dir,
     suite_case_data_dir,
     validate_result_schema,
     write_json,
 )
 
 
-def compare_case(suite: str, case_dir: Path) -> dict:
+def resolve_classification_path(args, suite: str, case_name: str) -> Path:
+    if args.use_latest_run:
+        return run_output_dir(
+            suite,
+            case_name,
+            tool=args.tool,
+            variant=args.variant,
+            seed=args.seed,
+            run_index=args.run_index,
+        ) / "classification.json"
+    return suite_case_data_dir(suite, case_name) / "classification.json"
+
+
+def compare_case(args, suite: str, case_dir: Path) -> dict:
     case_name = case_dir.name
     expected_path = case_dir / "expected.yaml"
-    classification_path = suite_case_data_dir(suite, case_name) / "classification.json"
+    classification_path = resolve_classification_path(args, suite, case_name)
 
     result = {
         "suite": suite,
@@ -43,9 +57,7 @@ def compare_case(suite: str, case_dir: Path) -> dict:
         result["mismatches"].append("classification.json not found")
         return result
 
-    expected_raw = load_yaml(expected_path) or {}
-    expected = normalize_expected_schema(expected_raw)
-
+    expected = normalize_expected_schema(load_yaml(expected_path) or {})
     classification = read_json(classification_path)
     validate_result_schema(
         classification,
@@ -80,17 +92,21 @@ def compare_case(suite: str, case_dir: Path) -> dict:
             result["status"] = "FAIL"
             result["mismatches"].append(f"{field}: expected={exp!r}, actual={act!r}")
 
-    result["summary"] = summarize_classification(case_name, suite, classification)
     result["expected"] = expected
     return result
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check expected labels against classification outputs")
-    parser.add_argument("--suite", choices=["micro", "oracle", "taxonomy"], required=True)
+    parser.add_argument("--suite", choices=SUITES, required=True)
     parser.add_argument("--case", default=None, help="check only one case")
     parser.add_argument("--strict", action="store_true", help="exit non-zero on FAIL or ERROR")
     parser.add_argument("--summary-json", default=None)
+    parser.add_argument("--use-latest-run", action="store_true")
+    parser.add_argument("--tool", default="rustdpr")
+    parser.add_argument("--variant", default="full")
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--run-index", type=int, default=1)
     args = parser.parse_args()
 
     if args.case:
@@ -106,7 +122,7 @@ def main() -> int:
     error_count = 0
 
     for case_dir in cases:
-        res = compare_case(args.suite, case_dir)
+        res = compare_case(args, args.suite, case_dir)
         results.append(res)
 
         status = res["status"]
@@ -136,7 +152,8 @@ def main() -> int:
     if args.summary_json:
         write_json(Path(args.summary_json), summary)
 
-    print("\n[summary]")
+    print("
+[summary]")
     print(f"suite : {args.suite}")
     print(f"total : {len(results)}")
     print(f"pass  : {pass_count}")

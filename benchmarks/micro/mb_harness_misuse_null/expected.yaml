@@ -1,0 +1,21 @@
+case_id: mb_harness_misuse_null
+suite: micro
+category: controlled
+
+ground_truth:
+  primary_label: HarnessMisuse
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: LikelyMisuse
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - AssertMacro
+selection:
+  reason: null pointer is constructed by harness rather than triggered by target semantics
+  negative_case: true
+  manually_labeled: true

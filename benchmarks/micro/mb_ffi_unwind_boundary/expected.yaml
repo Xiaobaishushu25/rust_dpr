@@ -1,0 +1,21 @@
+case_id: mb_ffi_unwind_boundary
+suite: micro
+category: controlled
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - Ffi
+panic_kinds:
+  - PanicMacro
+selection:
+  reason: controlled panic after crossing ffi-like callback boundary
+  negative_case: false
+  manually_labeled: true

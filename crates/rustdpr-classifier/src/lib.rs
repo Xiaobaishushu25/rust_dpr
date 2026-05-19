@@ -1,18 +1,34 @@
 use std::collections::{BTreeSet, HashMap};
 
 use rustdpr_core::{
-    ClassificationNotes, ClassificationResult, DangerousPathGraph, DangerousSite,
+    ClassificationNotes, ClassificationOptions, ClassificationResult, DangerousPathGraph, DangerousSite,
     HarnessValidityReport, OracleEvidenceStrength, OracleVerdict, PrimaryLabel, RelationLabel,
     SiteMap, TraceEvent, TraceLog, ValidityStatus, RUSTDPR_SCHEMA_VERSION,
 };
 
-pub fn classify_execution(
+pub fn classify_execution_with_options(
     site_map: &SiteMap,
     trace: &TraceLog,
     dpg: &DangerousPathGraph,
     harness: Option<&HarnessValidityReport>,
     oracle: Option<OracleVerdict>,
+    options: ClassificationOptions,
 ) -> ClassificationResult {
+    let harness = if options.use_harness_validity { harness } else { None };
+    let oracle = if options.use_oracle { oracle } else { None };
+
+    if options.panic_only {
+        return classify_panic_only(site_map, trace, harness, oracle);
+    }
+
+    if options.static_only {
+        return classify_static_only(site_map, trace, dpg, harness, oracle);
+    }
+
+    if !options.use_dynamic_trace || !options.use_dpg_adjacency {
+        return classify_execution_restricted(site_map, trace, dpg, harness, oracle, &options);
+    }
+
     let harness_status = harness.map(|h| h.status.clone()).unwrap_or(ValidityStatus::Unknown);
     let oracle_verdict = oracle.unwrap_or(OracleVerdict::Unknown);
     let oracle_evidence_strength = strength_for_oracle(&oracle_verdict);
@@ -412,4 +428,112 @@ fn line_gap_to_span(line: usize, site: &DangerousSite) -> usize {
     } else {
         0
     }
+}
+
+
+pub fn classify_execution(
+    site_map: &SiteMap,
+    trace: &TraceLog,
+    dpg: &DangerousPathGraph,
+    harness: Option<&HarnessValidityReport>,
+    oracle: Option<OracleVerdict>,
+) -> ClassificationResult {
+    classify_execution_with_options(site_map, trace, dpg, harness, oracle, ClassificationOptions::default())
+}
+
+fn classify_panic_only(
+    _site_map: &SiteMap,
+    trace: &TraceLog,
+    harness: Option<&HarnessValidityReport>,
+    oracle: Option<OracleVerdict>,
+) -> ClassificationResult {
+    let oracle = oracle.unwrap_or(OracleVerdict::Unknown);
+    let harness_status = harness.map(|h| h.status.clone()).unwrap_or(ValidityStatus::Unknown);
+    let mut notes = ClassificationNotes::default();
+    notes.fired_rules.push("panic-only-baseline".into());
+
+    let primary_label = if trace.has_panic() {
+        PrimaryLabel::SuspiciousCandidate
+    } else {
+        PrimaryLabel::Noise
+    };
+
+    ClassificationResult {
+        schema_version: RUSTDPR_SCHEMA_VERSION.to_string(),
+        case_name: trace.case_name.clone(),
+        suite: trace.suite.clone(),
+        primary_label,
+        relation: RelationLabel::Unknown,
+        reached_dangerous_sites: vec![],
+        nearest_dangerous_site: None,
+        distance_to_dangerous_site: None,
+        oracle_verdict: oracle.clone(),
+        oracle_evidence_strength: strength_for_oracle(&oracle),
+        target_api_misuse: false,
+        harness_status,
+        confidence: 0.50,
+        review_required: trace.has_panic(),
+        notes,
+    }
+}
+
+fn classify_static_only(
+    site_map: &SiteMap,
+    trace: &TraceLog,
+    dpg: &DangerousPathGraph,
+    harness: Option<&HarnessValidityReport>,
+    oracle: Option<OracleVerdict>,
+) -> ClassificationResult {
+    let oracle = oracle.unwrap_or(OracleVerdict::Unknown);
+    let harness_status = harness.map(|h| h.status.clone()).unwrap_or(ValidityStatus::Unknown);
+    let mut notes = ClassificationNotes::default();
+    notes.fired_rules.push("static-only-baseline".into());
+    notes.counters.insert("static_dangerous_sites".into(), site_map.dangerous_sites.len());
+    notes.counters.insert("static_panic_sites".into(), site_map.panic_sites.len());
+    notes.counters.insert("dpg_reachability_facts".into(), dpg.reachability.len());
+
+    let has_static_risk = !site_map.dangerous_sites.is_empty();
+    ClassificationResult {
+        schema_version: RUSTDPR_SCHEMA_VERSION.to_string(),
+        case_name: trace.case_name.clone(),
+        suite: trace.suite.clone(),
+        primary_label: if has_static_risk {
+            PrimaryLabel::SuspiciousCandidate
+        } else {
+            PrimaryLabel::Noise
+        },
+        relation: RelationLabel::Unknown,
+        reached_dangerous_sites: vec![],
+        nearest_dangerous_site: site_map.dangerous_sites.first().map(|s| s.site_id.clone()),
+        distance_to_dangerous_site: None,
+        oracle_verdict: oracle.clone(),
+        oracle_evidence_strength: strength_for_oracle(&oracle),
+        target_api_misuse: false,
+        harness_status,
+        confidence: if has_static_risk { 0.45 } else { 0.30 },
+        review_required: has_static_risk,
+        notes,
+    }
+}
+
+fn classify_execution_restricted(
+    site_map: &SiteMap,
+    trace: &TraceLog,
+    dpg: &DangerousPathGraph,
+    harness: Option<&HarnessValidityReport>,
+    oracle: Option<OracleVerdict>,
+    options: &ClassificationOptions,
+) -> ClassificationResult {
+    if options.use_dynamic_trace && !options.use_dpg_adjacency {
+        let empty_dpg = DangerousPathGraph::default();
+        return classify_execution(site_map, trace, &empty_dpg, harness, oracle);
+    }
+
+    if !options.use_dynamic_trace {
+        let mut trace_without_hits = trace.clone();
+        trace_without_hits.events.retain(|event| !matches!(event, TraceEvent::Hit { .. }));
+        return classify_execution(site_map, &trace_without_hits, dpg, harness, oracle);
+    }
+
+    classify_execution(site_map, trace, dpg, harness, oracle)
 }

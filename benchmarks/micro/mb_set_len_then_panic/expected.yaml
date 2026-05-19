@@ -1,0 +1,21 @@
+case_id: mb_set_len_then_panic
+suite: micro
+category: controlled
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - DropInvariant
+panic_kinds:
+  - AssertMacro
+selection:
+  reason: panic occurs after Vec::set_len dangerous-site execution
+  negative_case: false
+  manually_labeled: true

@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import argparse
 import time
+from pathlib import Path
 
 from common import (
     ROOT_DIR,
+    SUITES,
+    capture_version,
     clean_case_output_dir,
     find_trace_file,
     jsonl_trace_to_tracelog_json,
     read_json,
     resolve_case,
     run_cmd,
-    suite_case_data_dir,
+    run_output_dir,
     suite_case_report_path,
     validate_result_schema,
     write_json,
@@ -21,13 +24,20 @@ from common import (
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run a single RustDPR benchmark case")
     parser.add_argument("case", help="case name")
-    parser.add_argument("--suite", choices=["micro", "oracle", "taxonomy"], default=None)
+    parser.add_argument("--suite", choices=SUITES, default=None)
     parser.add_argument(
         "--mode",
         choices=["deterministic"],
         default="deterministic",
         help="execution mode; fuzz mode can be added later",
     )
+    parser.add_argument("--tool", default="rustdpr")
+    parser.add_argument("--variant", default="full")
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--run-index", type=int, default=1)
+    parser.add_argument("--budget-seconds", type=int, default=0)
+    parser.add_argument("--out-dir", default=None)
+    parser.add_argument("--no-clean", action="store_true")
     parser.add_argument("--asan-log", default=None, help="optional ASan log file")
     parser.add_argument("--miri-log", default=None, help="optional Miri log file")
     parser.add_argument(
@@ -35,16 +45,34 @@ def main() -> int:
         action="store_true",
         help="skip validate-harness even if fuzz/ exists",
     )
+    parser.add_argument("--panic-only", action="store_true")
+    parser.add_argument("--static-only", action="store_true")
+    parser.add_argument("--no-trace", action="store_true")
+    parser.add_argument("--no-dpg", action="store_true")
+    parser.add_argument("--no-harness-validity", action="store_true")
+    parser.add_argument("--no-oracle", action="store_true")
     args = parser.parse_args()
 
     suite, case_dir = resolve_case(args.case, args.suite)
     case_name = case_dir.name
-    out_dir = suite_case_data_dir(suite, case_name)
-    report_path = suite_case_report_path(suite, case_name)
-    clean_case_output_dir(out_dir)
-    report_path.parent.mkdir(parents=True, exist_ok=True)
+    if args.out_dir:
+        out_dir = Path(args.out_dir)
+    else:
+        out_dir = run_output_dir(
+            suite,
+            case_name,
+            tool=args.tool,
+            variant=args.variant,
+            seed=args.seed,
+            run_index=args.run_index,
+        )
 
-    run_id = f"{suite}-{case_name}-{int(time.time())}"
+    if args.no_clean:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        clean_case_output_dir(out_dir)
+
+    run_id = f"{suite}-{case_name}-{args.tool}-{args.variant}-{int(time.time())}"
 
     site_map = out_dir / "site_map.json"
     function_index = out_dir / "function_index.json"
@@ -53,15 +81,17 @@ def main() -> int:
     classification_json = out_dir / "classification.json"
     run_meta_json = out_dir / "run_meta.json"
     trace_log_json = out_dir / "trace_log.json"
-    report_md = report_path
+    report_md = out_dir / "report.md"
+    latest_report = suite_case_report_path(suite, case_name)
+    latest_report.parent.mkdir(parents=True, exist_ok=True)
 
     test_log = out_dir / "cargo_test.log"
 
     print(f"[case] suite={suite} case={case_name}")
     print(f"[mode] {args.mode}")
+    print(f"[tool] {args.tool}/{args.variant}")
     print(f"[out ] {out_dir}")
 
-    # 1) analyze-sites
     run_cmd(
         [
             "cargo",
@@ -80,7 +110,6 @@ def main() -> int:
         cwd=ROOT_DIR,
     )
 
-    # 2) build-dpg
     run_cmd(
         [
             "cargo",
@@ -99,7 +128,6 @@ def main() -> int:
         cwd=ROOT_DIR,
     )
 
-    # 3) validate-harness (optional)
     fuzz_dir = case_dir / "fuzz"
     harness_used = False
     if fuzz_dir.exists() and not args.skip_harness:
@@ -120,8 +148,7 @@ def main() -> int:
         )
         harness_used = True
 
-    # 4) run tests (deterministic mode)
-    run_cmd(
+    return_code = run_cmd(
         [
             "cargo",
             "test",
@@ -135,7 +162,6 @@ def main() -> int:
         check=False,
     )
 
-    # 5) locate and convert trace
     trace_jsonl = find_trace_file(case_dir)
     jsonl_trace_to_tracelog_json(
         trace_jsonl,
@@ -145,7 +171,6 @@ def main() -> int:
         run_id=run_id,
     )
 
-    # 6) classify
     classify_cmd = [
         "cargo",
         "run",
@@ -172,9 +197,21 @@ def main() -> int:
     if args.miri_log:
         classify_cmd.extend(["--miri-log", str(args.miri_log)])
 
+    if args.panic_only:
+        classify_cmd.append("--panic-only")
+    if args.static_only:
+        classify_cmd.append("--static-only")
+    if args.no_trace:
+        classify_cmd.append("--no-trace")
+    if args.no_dpg:
+        classify_cmd.append("--no-dpg")
+    if args.no_harness_validity:
+        classify_cmd.append("--no-harness-validity")
+    if args.no_oracle:
+        classify_cmd.append("--no-oracle")
+
     run_cmd(classify_cmd, cwd=ROOT_DIR)
 
-    # 7) report
     report_cmd = [
         "cargo",
         "run",
@@ -213,12 +250,22 @@ def main() -> int:
         label="classification",
     )
 
+    latest_report.write_text(report_md.read_text(encoding="utf-8"), encoding="utf-8")
+
     run_meta = {
         "run_id": run_id,
         "suite": suite,
         "case": case_name,
+        "tool": args.tool,
+        "variant": args.variant,
         "mode": args.mode,
+        "seed": args.seed,
+        "run_index": args.run_index,
+        "budget_seconds": args.budget_seconds,
         "case_dir": str(case_dir),
+        "out_dir": str(out_dir),
+        "rustc_version": capture_version(["rustc", "--version", "--verbose"]),
+        "cargo_version": capture_version(["cargo", "--version", "--verbose"]),
         "trace_jsonl": str(trace_jsonl),
         "trace_log_json": str(trace_log_json),
         "site_map": str(site_map),
@@ -227,11 +274,12 @@ def main() -> int:
         "harness_validity": str(harness_json) if harness_used else None,
         "classification_path": str(classification_json),
         "report_path": str(report_md),
+        "return_code": return_code,
         "classification": classification,
     }
     write_json(run_meta_json, run_meta)
 
-    print("\n[done]")
+    print("[done]")
     print(f"trace jsonl     : {trace_jsonl}")
     print(f"trace log json  : {trace_log_json}")
     print(f"classification  : {classification_json}")

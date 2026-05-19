@@ -18,12 +18,49 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 BENCHMARKS_DIR = ROOT_DIR / "benchmarks"
 DATA_DIR = ROOT_DIR / "data"
 REPORTS_DIR = ROOT_DIR / "reports"
+RUNS_DIR = DATA_DIR / "runs"
+
+SUITES = ("micro", "oracle", "taxonomy", "regression", "realworld")
+
+TOOLS = (
+    "rustdpr",
+    "cargo-fuzz",
+    "coverage-only",
+    "static-only",
+    "asan-only",
+    "miri-only",
+    "fourfuzz-approx",
+    "deepsurf-approx",
+)
+
+VARIANTS = (
+    "full",
+    "no-trace",
+    "no-dpg",
+    "no-harness",
+    "no-oracle",
+    "panic-only",
+    "static-only",
+    "unweighted",
+    "crash-only",
+    "oracle-only",
+    "unsafe-targeted",
+)
 
 
 def ensure_pyyaml() -> None:
     if yaml is None:
         print("PyYAML is required. Install with: pip install pyyaml")
         raise SystemExit(1)
+
+
+def add_suite_arg(parser, *, required: bool = False, default: str | None = None):
+    return parser.add_argument(
+        "--suite",
+        choices=SUITES,
+        required=required,
+        default=default,
+    )
 
 
 def run_cmd(
@@ -68,6 +105,21 @@ def run_cmd(
     if check and return_code != 0:
         raise subprocess.CalledProcessError(return_code, cmd)
     return return_code
+
+
+def capture_version(cmd: list[str]) -> str:
+    try:
+        proc = subprocess.run(
+            cmd,
+            text=True,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        return (proc.stdout or proc.stderr or "").strip()
+    except OSError as e:
+        return f"unavailable: {e}"
 
 
 def read_json(path: Path) -> Any:
@@ -133,6 +185,27 @@ def suite_case_report_path(suite: str, case_name: str) -> Path:
     return REPORTS_DIR / suite / f"{case_name}.md"
 
 
+def run_output_dir(
+    suite: str,
+    case_name: str,
+    *,
+    tool: str,
+    variant: str,
+    seed: int | None,
+    run_index: int,
+) -> Path:
+    seed_part = "seed-none" if seed is None else f"seed-{seed}"
+    return RUNS_DIR / suite / case_name / tool / variant / seed_part / f"run-{run_index:03d}"
+
+
+def suite_case_expected_path(suite: str, case_name: str) -> Path:
+    return BENCHMARKS_DIR / suite / case_name / "expected.yaml"
+
+
+def benchmark_manifest_path() -> Path:
+    return BENCHMARKS_DIR / "manifest.yaml"
+
+
 def clean_case_output_dir(path: Path) -> None:
     if path.exists():
         shutil.rmtree(path)
@@ -168,10 +241,7 @@ def find_trace_file(case_dir: Path) -> Path:
 
     if len(unique) > 1:
         raise RuntimeError(
-            "multiple trace.jsonl files found; cleanup old artifacts first:\n"
-            + "\n".join(str(p) for p in unique)
-        )
-
+            "multiple trace.jsonl files found; cleanup old artifacts first:"+ "".join(str(p) for p in unique))
     raise FileNotFoundError(f"trace.jsonl not found under {case_dir}")
 
 
@@ -217,32 +287,6 @@ def validate_result_schema(data: dict[str, Any], required: list[str], label: str
     missing = [k for k in required if k not in data]
     if missing:
         raise RuntimeError(f"{label} missing required fields: {missing}")
-
-
-def parse_oracle_verdict_from_log_text(content: str, source: str) -> str:
-    lower = content.lower()
-
-    if source == "asan":
-        if "double-free" in lower:
-            return "AddressSanitizerDoubleFree"
-        if "use-after-free" in lower:
-            return "AddressSanitizerUseAfterFree"
-        if "invalid free" in lower:
-            return "AddressSanitizerInvalidFree"
-        if "heap-buffer-overflow" in lower or "stack-buffer-overflow" in lower or "global-buffer-overflow" in lower or "out-of-bounds" in lower:
-            return "AddressSanitizerOutOfBounds"
-        if "leak" in lower:
-            return "AddressSanitizerLeak"
-        return "Unknown"
-
-    if source == "miri":
-        if "undefined behavior" in lower or "ub" in lower:
-            return "MiriUndefinedBehavior"
-        if "unsupported operation" in lower or "unsupported" in lower:
-            return "MiriUnsupported"
-        return "Unknown"
-
-    raise ValueError(f"unknown oracle source: {source}")
 
 
 RELATION_LABEL_MAP = {
@@ -291,6 +335,15 @@ VALID_ORACLE_VERDICTS = {
     "OracleTimeout",
 }
 
+VALID_HARNESS_STATUS = {
+    "ConfirmedValid",
+    "LikelyValid",
+    "LikelyMisuse",
+    "Invalid",
+    "Unknown",
+}
+
+
 def normalize_primary_label(value: Any) -> str:
     if value is None:
         raise RuntimeError("primary_label must not be null")
@@ -303,7 +356,7 @@ def normalize_primary_label(value: Any) -> str:
 def normalize_relation_label(value: Any) -> str:
     if value is None:
         raise RuntimeError("relation must not be null")
-    value = str(value)
+    value = RELATION_LABEL_MAP.get(str(value), str(value))
     if value not in VALID_RELATION_LABELS:
         raise RuntimeError(f"invalid relation: {value!r}")
     return value
@@ -317,13 +370,6 @@ def normalize_oracle_verdicts(value: Any) -> str:
         raise RuntimeError(f"invalid oracle_verdict: {value!r}")
     return value
 
-VALID_HARNESS_STATUS = {
-    "ConfirmedValid",
-    "LikelyValid",
-    "LikelyMisuse",
-    "Invalid",
-    "Unknown",
-}
 
 def normalize_harness_status(value: Any) -> str:
     if value is None:
@@ -333,7 +379,26 @@ def normalize_harness_status(value: Any) -> str:
         raise RuntimeError(f"invalid harness_status: {value!r}")
     return value
 
+
 def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
+    if "ground_truth" in expected:
+        gt = expected.get("ground_truth") or {}
+        return {
+            "case_id": expected.get("case_id"),
+            "suite": expected.get("suite") or expected.get("category"),
+            "category": expected.get("category"),
+            "primary_label": normalize_primary_label(gt["primary_label"]),
+            "relation": normalize_relation_label(gt["relation"]),
+            "oracle_verdict": normalize_oracle_verdicts(gt["oracle_verdict"]),
+            "harness_status": normalize_harness_status(gt["harness_status"]),
+            "reached_count": int(gt.get("expected_reached_count", 0)),
+            "security_relevant": bool(gt.get("security_relevant", False)),
+            "oracle_confirmable": bool(gt.get("oracle_confirmable", False)),
+            "dangerous_categories": expected.get("dangerous_categories", []),
+            "panic_kinds": expected.get("panic_kinds", []),
+            "notes": expected.get("notes"),
+        }
+
     required = [
         "primary_label",
         "relation",
@@ -343,19 +408,29 @@ def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
     ]
     missing = [k for k in required if k not in expected]
     if missing:
-        raise RuntimeError(
-            f"expected.yaml must use the new schema only; missing fields: {missing}"
-        )
+        raise RuntimeError(f"expected.yaml missing fields: {missing}")
 
+    primary_label = normalize_primary_label(expected["primary_label"])
     return {
-        "primary_label": normalize_primary_label(expected["primary_label"]),
+        "case_id": expected.get("case_id"),
+        "suite": expected.get("suite"),
+        "category": expected.get("category"),
+        "primary_label": primary_label,
         "relation": normalize_relation_label(expected["relation"]),
         "oracle_verdict": normalize_oracle_verdicts(expected["oracle_verdict"]),
         "harness_status": normalize_harness_status(expected["harness_status"]),
         "reached_count": int(expected["reached_count"]),
+        "security_relevant": primary_label in {
+            "PanicAfterUnsafe",
+            "InsideUnsafePanic",
+            "DangerousPathReached",
+            "OracleConfirmedBug",
+            "SuspiciousCandidate",
+        },
+        "oracle_confirmable": primary_label == "OracleConfirmedBug",
+        "dangerous_categories": expected.get("dangerous_categories", []),
+        "panic_kinds": expected.get("panic_kinds", []),
         "notes": expected.get("notes"),
-        "case_id": expected.get("case_id"),
-        "category": expected.get("category"),
     }
 
 
@@ -369,7 +444,29 @@ def summarize_classification(case_name: str, suite: str, data: dict[str, Any]) -
         "harness_status": data.get("harness_status"),
         "distance_to_dangerous_site": data.get("distance_to_dangerous_site"),
         "reached_dangerous_sites": len(data.get("reached_dangerous_sites", [])),
-        "notes_count": len(data.get("notes", {}).get("notes", [])),
+        "notes_count": len((data.get("notes") or {}).get("notes", [])),
         "review_required": data.get("review_required"),
+        "confidence": data.get("confidence"),
         "schema_version": data.get("schema_version"),
     }
+
+
+def summarize_run_classification(
+    case_name: str,
+    suite: str,
+    classification: dict[str, Any],
+    meta: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    meta = meta or {}
+    row = summarize_classification(case_name, suite, classification)
+    row.update(
+        {
+            "tool": meta.get("tool"),
+            "variant": meta.get("variant"),
+            "seed": meta.get("seed"),
+            "run_index": meta.get("run_index"),
+            "budget_seconds": meta.get("budget_seconds"),
+            "return_code": meta.get("return_code"),
+        }
+    )
+    return row

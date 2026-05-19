@@ -3,3 +3,9 @@ cases:
   - mb_unwrap_shallow
   - mb_panic_before_unsafe
   - mb_panic_after_unsafe
+  - mb_panic_inside_unsafe
+  - mb_ffi_unwind_boundary
+  - mb_harness_misuse_null
+  - mb_set_len_then_panic
+  - mb_assume_init_ub
+  - mb_transmute_contract

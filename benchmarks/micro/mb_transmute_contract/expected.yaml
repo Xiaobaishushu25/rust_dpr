@@ -1,0 +1,21 @@
+case_id: mb_transmute_contract
+suite: micro
+category: controlled
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - TypePunning
+panic_kinds:
+  - AssertMacro
+selection:
+  reason: panic follows transmute-based conversion and should not be collapsed into shallow contract panic
+  negative_case: false
+  manually_labeled: true

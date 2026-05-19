@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use rustdpr_analyzer::{analyze_crate, analyze_harness_validity, build_dpg, collect_metadata};
-use rustdpr_classifier::classify_execution;
-use rustdpr_core::{DangerousPathGraph, HarnessValidityReport, SiteMap, TraceLog};
+use rustdpr_classifier::classify_execution_with_options;
+use rustdpr_core::{ClassificationOptions, DangerousPathGraph, HarnessValidityReport, SiteMap, TraceLog};
 use rustdpr_oracle::{parse_asan_log, parse_miri_log};
 use rustdpr_report::render_markdown_report;
 use serde::de::DeserializeOwned;
@@ -60,6 +60,18 @@ enum Commands {
         asan_log: Option<PathBuf>,
         #[arg(long)]
         miri_log: Option<PathBuf>,
+        #[arg(long)]
+        panic_only: bool,
+        #[arg(long)]
+        static_only: bool,
+        #[arg(long)]
+        no_trace: bool,
+        #[arg(long)]
+        no_dpg: bool,
+        #[arg(long)]
+        no_harness_validity: bool,
+        #[arg(long)]
+        no_oracle: bool,
         #[arg(long)]
         out: PathBuf,
     },
@@ -119,6 +131,12 @@ fn main() -> Result<()> {
             harness,
             asan_log,
             miri_log,
+            panic_only,
+            static_only,
+            no_trace,
+            no_dpg,
+            no_harness_validity,
+            no_oracle,
             out,
         } => {
             let site_map: SiteMap = read_json(&site_map)?;
@@ -139,7 +157,17 @@ fn main() -> Result<()> {
                 None
             };
 
-            let result = classify_execution(&site_map, &trace, &dpg, harness.as_ref(), oracle);
+            let options = ClassificationOptions {
+                use_dynamic_trace: !no_trace,
+                use_dpg_adjacency: !no_dpg,
+                use_harness_validity: !no_harness_validity,
+                use_oracle: !no_oracle,
+                panic_only,
+                static_only,
+                weighted_sites: true,
+            };
+
+            let result = classify_execution_with_options(&site_map, &trace, &dpg, harness.as_ref(), oracle, options);
             write_json(&out, &result)?;
         }
         Commands::Report {

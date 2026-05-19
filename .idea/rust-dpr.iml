@@ -16,6 +16,12 @@
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_heap_uaf/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_oob_raw/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_panic_before_unsafe/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_assume_init_ub/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_ffi_unwind_boundary/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_harness_misuse_null/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_inside_unsafe/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_set_len_then_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_transmute_contract/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_before_unsafe/fuzz/target" />

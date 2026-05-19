@@ -1,0 +1,36 @@
+schema_version: "0.3.0"
+benchmark_name: RustDPRBench
+
+suites:
+  micro:
+    description: Controlled semantic cases for panic-danger relation.
+    expected_cases_min: 30
+  oracle:
+    description: Controlled cases with ASan/Miri-confirmable bugs.
+    expected_cases_min: 10
+  taxonomy:
+    description: Panic-danger taxonomy stress cases.
+    expected_cases_min: 20
+  regression:
+    description: Historical RustSec/CVE/GitHub cases.
+    expected_cases_min: 10
+  realworld:
+    description: Selected real-world crates.
+    expected_cases_min: 10
+
+selection_criteria:
+  realworld:
+    - crate builds with pinned toolchain
+    - contains unsafe/FFI/manual allocation/drop-sensitive code
+    - has stable tests or fuzz harness
+    - covers at least one domain category
+  regression:
+    - public advisory or issue
+    - vulnerable version is buildable
+    - reproducer or regression test exists
+    - root cause relevant to unsafe/FFI/panic/drop/raw pointer
+
+label_policy:
+  annotators: 2
+  agreement_metric: CohenKappa
+  adjudication_required: true

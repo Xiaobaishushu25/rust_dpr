@@ -1,0 +1,23 @@
+case_id: mb_panic_inside_unsafe
+suite: micro
+category: controlled
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: InsideUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - UnsafeRust
+panic_kinds:
+  - PanicMacro
+selection:
+  reason: controlled panic occurring syntactically inside unsafe block
+  negative_case: false
+  manually_labeled: true
+notes:
+  - should distinguish inside-unsafe from after-unsafe

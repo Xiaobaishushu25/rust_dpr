@@ -1,34 +1,40 @@
 case_id: <case_name>
-category: <micro|oracle|taxonomy|regression|realworld>
+suite: <micro|oracle|taxonomy|regression|realworld>
+category: <controlled|oracle|taxonomy|regression|realworld>
 
-primary_label: <PrimaryLabel>
-  Noise
-  ContractPanic
-  HarnessMisuse
-  BlockingPanic
-  PanicAfterUnsafe
-  InsideUnsafePanic
-  DangerousPathReached
-  OracleConfirmedBug
-  SuspiciousCandidate
-  Unknown
-relation: <RelationLabel>
-  NoneObserved
-  BeforeUnsafe
-  AfterUnsafe
-  InsideUnsafe
-  AdjacentToUnsafe
-  FfiBoundary
-  Unknown
-oracle_verdict: <OracleVerdict>
-harness_status: <ValidityStatus>
-  ConfirmedValid
-  LikelyValid
-  LikelyMisuse
-  Invalid
-  Unknown
-reached_count: <int>
+source:
+  crate_name: <crate>
+  version: <version-or-local>
+  advisory: <RustSec/CVE/GitHub issue or null>
+  fixed_version: <version or null>
+  url: <url or null>
+
+ground_truth:
+  primary_label: <PrimaryLabel>
+  relation: <RelationLabel>
+  oracle_verdict: <OracleVerdict>
+  harness_status: <ValidityStatus>
+  security_relevant: <true|false>
+  oracle_confirmable: <true|false>
+  expected_reached_count: <int>
+
+dangerous_categories:
+  - RawPointer
+  - Ffi
+  - AllocationOwnership
+
+panic_kinds:
+  - UnwrapLike
+  - AssertMacro
+
+harness:
+  path: <fuzz/fuzz_targets/fuzz_target_1.rs or tests>
+  validity_rationale: <short text>
+
+selection:
+  reason: <why included>
+  negative_case: <true|false>
+  manually_labeled: <true|false>
 
 notes:
-  - <free text note 1>
-  - <free text note 2>
+  - <free text>

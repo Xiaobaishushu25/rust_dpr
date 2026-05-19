@@ -4,26 +4,29 @@ import argparse
 from collections import Counter
 from pathlib import Path
 
-from common import DATA_DIR, read_json, write_csv, write_json
+from common import RUNS_DIR, SUITES, read_json, write_csv, write_json
 
 
-def collect_suite_rows(suite: str) -> list[dict]:
-    suite_dir = DATA_DIR / suite
+def collect_run_rows(suite: str) -> list[dict]:
     rows = []
-
+    suite_dir = RUNS_DIR / suite
     if not suite_dir.exists():
         return rows
 
-    for case_dir in sorted(p for p in suite_dir.iterdir() if p.is_dir()):
-        classification_path = case_dir / "classification.json"
-        if not classification_path.exists():
-            continue
-
+    for classification_path in sorted(suite_dir.rglob("classification.json")):
+        run_dir = classification_path.parent
         data = read_json(classification_path)
+        meta_path = run_dir / "run_meta.json"
+        meta = read_json(meta_path) if meta_path.exists() else {}
         rows.append(
             {
                 "suite": suite,
-                "case": case_dir.name,
+                "case": data.get("case_name") or meta.get("case"),
+                "tool": meta.get("tool", "unknown"),
+                "variant": meta.get("variant", "unknown"),
+                "seed": meta.get("seed"),
+                "run_index": meta.get("run_index"),
+                "mode": meta.get("mode"),
                 "primary_label": data.get("primary_label"),
                 "relation": data.get("relation"),
                 "oracle_verdict": data.get("oracle_verdict"),
@@ -32,6 +35,7 @@ def collect_suite_rows(suite: str) -> list[dict]:
                 "reached_dangerous_sites": len(data.get("reached_dangerous_sites", [])),
                 "review_required": data.get("review_required"),
                 "confidence": data.get("confidence"),
+                "return_code": meta.get("return_code"),
                 "schema_version": data.get("schema_version"),
             }
         )
@@ -40,12 +44,12 @@ def collect_suite_rows(suite: str) -> list[dict]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Collect RustDPR classification results")
-    parser.add_argument("--suite", choices=["micro", "oracle", "taxonomy"], required=True)
+    parser.add_argument("--suite", choices=SUITES, required=True)
     parser.add_argument("--out-json", required=True)
     parser.add_argument("--out-csv", required=True)
     args = parser.parse_args()
 
-    rows = collect_suite_rows(args.suite)
+    rows = collect_run_rows(args.suite)
 
     label_counter = Counter(row["primary_label"] for row in rows)
     relation_counter = Counter(row["relation"] for row in rows)
@@ -54,7 +58,7 @@ def main() -> int:
 
     summary = {
         "suite": args.suite,
-        "total_cases": len(rows),
+        "total_runs": len(rows),
         "primary_label_counts": dict(label_counter),
         "relation_counts": dict(relation_counter),
         "oracle_verdict_counts": dict(oracle_counter),
@@ -67,6 +71,11 @@ def main() -> int:
     fieldnames = [
         "suite",
         "case",
+        "tool",
+        "variant",
+        "seed",
+        "run_index",
+        "mode",
         "primary_label",
         "relation",
         "oracle_verdict",
@@ -75,15 +84,16 @@ def main() -> int:
         "reached_dangerous_sites",
         "review_required",
         "confidence",
+        "return_code",
         "schema_version",
     ]
     write_csv(Path(args.out_csv), rows, fieldnames)
 
     print("[done]")
-    print(f"suite       : {args.suite}")
-    print(f"total cases : {len(rows)}")
-    print(f"json        : {args.out_json}")
-    print(f"csv         : {args.out_csv}")
+    print(f"suite      : {args.suite}")
+    print(f"total runs : {len(rows)}")
+    print(f"json       : {args.out_json}")
+    print(f"csv        : {args.out_csv}")
     return 0
 
 
