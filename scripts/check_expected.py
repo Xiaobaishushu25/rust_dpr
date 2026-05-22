@@ -152,8 +152,7 @@ def main() -> int:
     if args.summary_json:
         write_json(Path(args.summary_json), summary)
 
-    print("
-[summary]")
+    print("[summary]")
     print(f"suite : {args.suite}")
     print(f"total : {len(results)}")
     print(f"pass  : {pass_count}")
