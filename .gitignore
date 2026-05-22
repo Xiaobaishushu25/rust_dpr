@@ -10,3 +10,10 @@
 # 系统文件
 .DS_Store
 Thumbs.db
+
+/data/
+/reports/*.csv
+/reports/*.json
+/reports/tables/
+/reports/figures/
+/reports/oracle_runs_*.json

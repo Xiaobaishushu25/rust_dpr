@@ -15,7 +15,6 @@ from common import (
     resolve_case,
     run_cmd,
     run_output_dir,
-    suite_case_report_path,
     validate_result_schema,
     write_json,
 )
@@ -82,9 +81,6 @@ def main() -> int:
     run_meta_json = out_dir / "run_meta.json"
     trace_log_json = out_dir / "trace_log.json"
     report_md = out_dir / "report.md"
-    latest_report = suite_case_report_path(suite, case_name)
-    latest_report.parent.mkdir(parents=True, exist_ok=True)
-
     test_log = out_dir / "cargo_test.log"
 
     print(f"[case] suite={suite} case={case_name}")
@@ -250,7 +246,6 @@ def main() -> int:
         label="classification",
     )
 
-    latest_report.write_text(report_md.read_text(encoding="utf-8"), encoding="utf-8")
 
     run_meta = {
         "run_id": run_id,

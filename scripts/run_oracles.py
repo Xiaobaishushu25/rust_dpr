@@ -37,10 +37,11 @@ def main() -> int:
     for classification_path in sorted(suite_dir.rglob("classification.json")):
         run_dir = classification_path.parent
         classification = read_json(classification_path)
-        meta = read_json(run_dir / "run_meta.json") if (run_dir / "run_meta.json").exists() else {}
-        case = classification.get("case_name") or meta.get("case")
-        if not case:
-            continue
+        meta_path = run_dir / "run_meta.json"
+        if not meta_path.exists():
+            raise RuntimeError(f"run_meta.json not found for run: {run_dir}")
+        meta = read_json(meta_path)
+        case = meta["case"]
         if args.only_candidates and classification.get("primary_label") in {"Noise", "ContractPanic", "BlockingPanic"}:
             continue
 

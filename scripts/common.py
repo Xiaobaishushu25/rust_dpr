@@ -177,14 +177,6 @@ def resolve_case(case: str, suite: str | None = None) -> tuple[str, Path]:
     return matches[0]
 
 
-def suite_case_data_dir(suite: str, case_name: str) -> Path:
-    return DATA_DIR / suite / case_name
-
-
-def suite_case_report_path(suite: str, case_name: str) -> Path:
-    return REPORTS_DIR / suite / f"{case_name}.md"
-
-
 def run_output_dir(
     suite: str,
     case_name: str,
@@ -241,7 +233,9 @@ def find_trace_file(case_dir: Path) -> Path:
 
     if len(unique) > 1:
         raise RuntimeError(
-            "multiple trace.jsonl files found; cleanup old artifacts first:"+ "".join(str(p) for p in unique))
+            "multiple trace.jsonl files found; clean stale benchmark artifacts first: "
+            + ", ".join(str(p) for p in unique)
+        )
     raise FileNotFoundError(f"trace.jsonl not found under {case_dir}")
 
 
@@ -381,53 +375,36 @@ def normalize_harness_status(value: Any) -> str:
 
 
 def normalize_expected_schema(expected: dict[str, Any]) -> dict[str, Any]:
-    if "ground_truth" in expected:
-        gt = expected.get("ground_truth") or {}
-        return {
-            "case_id": expected.get("case_id"),
-            "suite": expected.get("suite") or expected.get("category"),
-            "category": expected.get("category"),
-            "primary_label": normalize_primary_label(gt["primary_label"]),
-            "relation": normalize_relation_label(gt["relation"]),
-            "oracle_verdict": normalize_oracle_verdicts(gt["oracle_verdict"]),
-            "harness_status": normalize_harness_status(gt["harness_status"]),
-            "reached_count": int(gt.get("expected_reached_count", 0)),
-            "security_relevant": bool(gt.get("security_relevant", False)),
-            "oracle_confirmable": bool(gt.get("oracle_confirmable", False)),
-            "dangerous_categories": expected.get("dangerous_categories", []),
-            "panic_kinds": expected.get("panic_kinds", []),
-            "notes": expected.get("notes"),
-        }
+    required_top_level = ["case_id", "suite", "category", "ground_truth"]
+    missing_top_level = [k for k in required_top_level if k not in expected]
+    if missing_top_level:
+        raise RuntimeError(f"expected.yaml missing required fields: {missing_top_level}")
 
-    required = [
+    gt = expected.get("ground_truth") or {}
+    required_ground_truth = [
         "primary_label",
         "relation",
         "oracle_verdict",
         "harness_status",
-        "reached_count",
+        "security_relevant",
+        "oracle_confirmable",
+        "expected_reached_count",
     ]
-    missing = [k for k in required if k not in expected]
-    if missing:
-        raise RuntimeError(f"expected.yaml missing fields: {missing}")
+    missing_ground_truth = [k for k in required_ground_truth if k not in gt]
+    if missing_ground_truth:
+        raise RuntimeError(f"expected.yaml ground_truth missing required fields: {missing_ground_truth}")
 
-    primary_label = normalize_primary_label(expected["primary_label"])
     return {
-        "case_id": expected.get("case_id"),
-        "suite": expected.get("suite"),
-        "category": expected.get("category"),
-        "primary_label": primary_label,
-        "relation": normalize_relation_label(expected["relation"]),
-        "oracle_verdict": normalize_oracle_verdicts(expected["oracle_verdict"]),
-        "harness_status": normalize_harness_status(expected["harness_status"]),
-        "reached_count": int(expected["reached_count"]),
-        "security_relevant": primary_label in {
-            "PanicAfterUnsafe",
-            "InsideUnsafePanic",
-            "DangerousPathReached",
-            "OracleConfirmedBug",
-            "SuspiciousCandidate",
-        },
-        "oracle_confirmable": primary_label == "OracleConfirmedBug",
+        "case_id": expected["case_id"],
+        "suite": expected["suite"],
+        "category": expected["category"],
+        "primary_label": normalize_primary_label(gt["primary_label"]),
+        "relation": normalize_relation_label(gt["relation"]),
+        "oracle_verdict": normalize_oracle_verdicts(gt["oracle_verdict"]),
+        "harness_status": normalize_harness_status(gt["harness_status"]),
+        "reached_count": int(gt["expected_reached_count"]),
+        "security_relevant": bool(gt["security_relevant"]),
+        "oracle_confirmable": bool(gt["oracle_confirmable"]),
         "dangerous_categories": expected.get("dangerous_categories", []),
         "panic_kinds": expected.get("panic_kinds", []),
         "notes": expected.get("notes"),
@@ -455,18 +432,22 @@ def summarize_run_classification(
     case_name: str,
     suite: str,
     classification: dict[str, Any],
-    meta: dict[str, Any] | None = None,
+    meta: dict[str, Any],
 ) -> dict[str, Any]:
-    meta = meta or {}
+    required_meta = ["tool", "variant", "seed", "run_index", "budget_seconds", "return_code"]
+    missing_meta = [k for k in required_meta if k not in meta]
+    if missing_meta:
+        raise RuntimeError(f"run_meta.json missing required fields: {missing_meta}")
+
     row = summarize_classification(case_name, suite, classification)
     row.update(
         {
-            "tool": meta.get("tool"),
-            "variant": meta.get("variant"),
-            "seed": meta.get("seed"),
-            "run_index": meta.get("run_index"),
-            "budget_seconds": meta.get("budget_seconds"),
-            "return_code": meta.get("return_code"),
+            "tool": meta["tool"],
+            "variant": meta["variant"],
+            "seed": meta["seed"],
+            "run_index": meta["run_index"],
+            "budget_seconds": meta["budget_seconds"],
+            "return_code": meta["return_code"],
         }
     )
     return row

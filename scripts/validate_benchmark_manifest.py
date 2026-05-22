@@ -17,9 +17,12 @@ def validate_suite(suite: str) -> list[dict]:
             continue
         try:
             expected = normalize_expected_schema(load_yaml(expected_path) or {})
-            if expected.get("case_id") and expected["case_id"] != case_dir.name:
+            if expected["case_id"] != case_dir.name:
                 row["status"] = "ERROR"
                 row["errors"].append("case_id does not match directory name")
+            if expected["suite"] != suite:
+                row["status"] = "ERROR"
+                row["errors"].append("suite does not match directory name")
         except Exception as e:
             row["status"] = "ERROR"
             row["errors"].append(str(e))

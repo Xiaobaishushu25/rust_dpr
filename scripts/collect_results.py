@@ -17,16 +17,18 @@ def collect_run_rows(suite: str) -> list[dict]:
         run_dir = classification_path.parent
         data = read_json(classification_path)
         meta_path = run_dir / "run_meta.json"
-        meta = read_json(meta_path) if meta_path.exists() else {}
+        if not meta_path.exists():
+            raise RuntimeError(f"run_meta.json not found for run: {run_dir}")
+        meta = read_json(meta_path)
         rows.append(
             {
                 "suite": suite,
-                "case": data.get("case_name") or meta.get("case"),
-                "tool": meta.get("tool", "unknown"),
-                "variant": meta.get("variant", "unknown"),
-                "seed": meta.get("seed"),
-                "run_index": meta.get("run_index"),
-                "mode": meta.get("mode"),
+                "case": meta["case"],
+                "tool": meta["tool"],
+                "variant": meta["variant"],
+                "seed": meta["seed"],
+                "run_index": meta["run_index"],
+                "mode": meta["mode"],
                 "primary_label": data.get("primary_label"),
                 "relation": data.get("relation"),
                 "oracle_verdict": data.get("oracle_verdict"),

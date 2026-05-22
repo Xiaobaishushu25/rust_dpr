@@ -4,7 +4,7 @@ import argparse
 import shutil
 from pathlib import Path
 
-from common import BENCHMARKS_DIR, DATA_DIR
+from common import BENCHMARKS_DIR, RUNS_DIR, SUITES
 
 
 def remove_path(path: Path) -> None:
@@ -18,20 +18,15 @@ def remove_path(path: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Clean RustDPR generated artifacts")
-    parser.add_argument(
-        "--suite",
-        choices=["micro", "oracle", "taxonomy"],
-        default=None,
-        help="clean only one suite",
-    )
+    parser.add_argument("--suite", choices=SUITES, default=None, help="clean only one suite")
     args = parser.parse_args()
 
-    suites = [args.suite] if args.suite else ["micro", "oracle", "taxonomy"]
+    suites = [args.suite] if args.suite else list(SUITES)
 
     for suite in suites:
-        data_suite_dir = DATA_DIR / suite
-        if data_suite_dir.exists():
-            remove_path(data_suite_dir)
+        runs_suite_dir = RUNS_DIR / suite
+        if runs_suite_dir.exists():
+            remove_path(runs_suite_dir)
 
         suite_dir = BENCHMARKS_DIR / suite
         if not suite_dir.exists():

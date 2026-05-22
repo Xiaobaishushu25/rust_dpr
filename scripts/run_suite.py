@@ -122,8 +122,10 @@ def main() -> int:
                 classification_path = out_dir / "classification.json"
                 meta_path = out_dir / "run_meta.json"
                 if classification_path.exists():
+                    if not meta_path.exists():
+                        raise RuntimeError(f"run_meta.json not found for run: {out_dir}")
                     classification = read_json(classification_path)
-                    meta = read_json(meta_path) if meta_path.exists() else {}
+                    meta = read_json(meta_path)
                     row = summarize_run_classification(case_name, args.suite, classification, meta)
                 else:
                     row = {

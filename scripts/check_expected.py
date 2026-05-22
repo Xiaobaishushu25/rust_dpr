@@ -14,23 +14,31 @@ from common import (
     normalize_relation_label,
     read_json,
     run_output_dir,
-    suite_case_data_dir,
     validate_result_schema,
     write_json,
 )
 
 
+REQUIRED_CLASSIFICATION_FIELDS = [
+    "schema_version",
+    "primary_label",
+    "relation",
+    "oracle_verdict",
+    "harness_status",
+    "confidence",
+    "review_required",
+]
+
+
 def resolve_classification_path(args, suite: str, case_name: str) -> Path:
-    if args.use_latest_run:
-        return run_output_dir(
-            suite,
-            case_name,
-            tool=args.tool,
-            variant=args.variant,
-            seed=args.seed,
-            run_index=args.run_index,
-        ) / "classification.json"
-    return suite_case_data_dir(suite, case_name) / "classification.json"
+    return run_output_dir(
+        suite,
+        case_name,
+        tool=args.tool,
+        variant=args.variant,
+        seed=args.seed,
+        run_index=args.run_index,
+    ) / "classification.json"
 
 
 def compare_case(args, suite: str, case_dir: Path) -> dict:
@@ -47,62 +55,54 @@ def compare_case(args, suite: str, case_dir: Path) -> dict:
         "classification_path": str(classification_path),
     }
 
-    if not expected_path.exists():
-        result["status"] = "ERROR"
-        result["mismatches"].append("expected.yaml not found")
-        return result
+    try:
+        if not expected_path.exists():
+            raise FileNotFoundError(f"expected.yaml not found: {expected_path}")
+        if not classification_path.exists():
+            raise FileNotFoundError(f"classification.json not found: {classification_path}")
 
-    if not classification_path.exists():
-        result["status"] = "ERROR"
-        result["mismatches"].append("classification.json not found")
-        return result
+        expected = normalize_expected_schema(load_yaml(expected_path) or {})
+        classification = read_json(classification_path)
+        validate_result_schema(
+            classification,
+            required=REQUIRED_CLASSIFICATION_FIELDS,
+            label=f"{suite}/{case_name}/classification",
+        )
 
-    expected = normalize_expected_schema(load_yaml(expected_path) or {})
-    classification = read_json(classification_path)
-    validate_result_schema(
-        classification,
-        required=[
-            "schema_version",
-            "primary_label",
-            "relation",
-            "oracle_verdict",
-            "harness_status",
-            "confidence",
-            "review_required",
-        ],
-        label=f"{suite}/{case_name}/classification",
-    )
+        actual_primary = normalize_primary_label(classification.get("primary_label"))
+        actual_relation = normalize_relation_label(classification.get("relation"))
+        actual_oracle = normalize_oracle_verdicts(classification.get("oracle_verdict"))
+        actual_harness = classification.get("harness_status")
+        actual_reached_count = len(classification.get("reached_dangerous_sites", []))
 
-    actual_primary = normalize_primary_label(classification.get("primary_label"))
-    actual_relation = normalize_relation_label(classification.get("relation"))
-    actual_oracle = normalize_oracle_verdicts(classification.get("oracle_verdict"))
-    actual_harness = classification.get("harness_status")
-    actual_reached_count = len(classification.get("reached_dangerous_sites", []))
+        checks = [
+            ("primary_label", expected["primary_label"], actual_primary),
+            ("relation", expected["relation"], actual_relation),
+            ("oracle_verdict", expected["oracle_verdict"], actual_oracle),
+            ("harness_status", expected["harness_status"], actual_harness),
+            ("reached_count", expected["reached_count"], actual_reached_count),
+        ]
 
-    checks = [
-        ("primary_label", expected["primary_label"], actual_primary),
-        ("relation", expected["relation"], actual_relation),
-        ("oracle_verdict", expected["oracle_verdict"], actual_oracle),
-        ("harness_status", expected["harness_status"], actual_harness),
-        ("reached_count", expected["reached_count"], actual_reached_count),
-    ]
+        for field, exp, act in checks:
+            if exp != act:
+                result["status"] = "FAIL"
+                result["mismatches"].append(f"{field}: expected={exp!r}, actual={act!r}")
 
-    for field, exp, act in checks:
-        if exp != act:
-            result["status"] = "FAIL"
-            result["mismatches"].append(f"{field}: expected={exp!r}, actual={act!r}")
+        result["expected"] = expected
+    except Exception as exc:
+        if result["status"] == "PASS":
+            result["status"] = "ERROR"
+        result["mismatches"].append(str(exc))
 
-    result["expected"] = expected
     return result
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Check expected labels against classification outputs")
+    parser = argparse.ArgumentParser(description="Check expected labels against canonical run outputs")
     parser.add_argument("--suite", choices=SUITES, required=True)
     parser.add_argument("--case", default=None, help="check only one case")
     parser.add_argument("--strict", action="store_true", help="exit non-zero on FAIL or ERROR")
     parser.add_argument("--summary-json", default=None)
-    parser.add_argument("--use-latest-run", action="store_true")
     parser.add_argument("--tool", default="rustdpr")
     parser.add_argument("--variant", default="full")
     parser.add_argument("--seed", type=int, default=1)
@@ -142,6 +142,10 @@ def main() -> int:
 
     summary = {
         "suite": args.suite,
+        "tool": args.tool,
+        "variant": args.variant,
+        "seed": args.seed,
+        "run_index": args.run_index,
         "total": len(results),
         "pass": pass_count,
         "fail": fail_count,
@@ -153,11 +157,12 @@ def main() -> int:
         write_json(Path(args.summary_json), summary)
 
     print("[summary]")
-    print(f"suite : {args.suite}")
-    print(f"total : {len(results)}")
-    print(f"pass  : {pass_count}")
-    print(f"fail  : {fail_count}")
-    print(f"error : {error_count}")
+    print(f"suite    : {args.suite}")
+    print(f"run      : {args.tool}/{args.variant}/seed-{args.seed}/run-{args.run_index:03d}")
+    print(f"total    : {len(results)}")
+    print(f"pass     : {pass_count}")
+    print(f"fail     : {fail_count}")
+    print(f"error    : {error_count}")
 
     if args.strict and (fail_count > 0 or error_count > 0):
         return 1

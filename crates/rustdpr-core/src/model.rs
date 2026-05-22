@@ -32,27 +32,27 @@ pub struct TargetMeta {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum DangerousCategory {
     #[default]
-    UnsafeRust,
-    RawPointer,
-    Ffi,
-    TypePunning,
-    AllocationOwnership,
-    Initialization,
-    DropInvariant,
-    RuntimeCheck,
-    PanicBoundary,
-    Unknown,
+    UnsafeRust,              // unsafe Rust 通用类别
+    RawPointer,              // 裸指针操作
+    Ffi,                     // 外部函数接口
+    TypePunning,             // 类型双关（transmute）
+    AllocationOwnership,     // 内存分配所有权 比如手动内存管理
+    Initialization,          // 初始化问题
+    DropInvariant,           // Drop 不变量破坏
+    RuntimeCheck,            // 运行时检查
+    PanicBoundary,           // Panic 边界问题
+    Unknown,                 // 未知类别
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum EvidenceStrength {
-    Confirmed,
-    Strong,
-    Medium,
-    Weak,
+    Confirmed,      // 已确认（通过 ASAN/Miri 等工具）
+    Strong,         // 强证据（明确的静态模式匹配）
+    Medium,         // 中等证据
+    Weak,           // 弱证据
     #[default]
-    Heuristic,
-    Unsupported,
+    Heuristic,      // 启发式推断（默认）
+    Unsupported,    // 不支持检测
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]

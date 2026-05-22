@@ -56,18 +56,20 @@ def iter_runs(suite: str) -> list[dict[str, Any]]:
         run_dir = classification_path.parent
         classification = read_json(classification_path)
         meta_path = run_dir / "run_meta.json"
-        meta = read_json(meta_path) if meta_path.exists() else {}
-        case = classification.get("case_name") or meta.get("case")
-        expected = load_expected(suite, case) if case else None
+        if not meta_path.exists():
+            raise RuntimeError(f"run_meta.json not found for run: {run_dir}")
+        meta = read_json(meta_path)
+        case = meta["case"]
+        expected = load_expected(suite, case)
         rows.append(
             {
                 "suite": suite,
                 "case": case,
                 "run_dir": str(run_dir),
-                "tool": meta.get("tool", "rustdpr"),
-                "variant": meta.get("variant", "full"),
-                "seed": meta.get("seed"),
-                "run_index": meta.get("run_index"),
+                "tool": meta["tool"],
+                "variant": meta["variant"],
+                "seed": meta["seed"],
+                "run_index": meta["run_index"],
                 "classification": classification,
                 "expected": expected,
             }
