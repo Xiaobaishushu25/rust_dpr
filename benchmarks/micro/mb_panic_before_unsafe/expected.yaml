@@ -1,8 +1,20 @@
 case_id: mb_panic_before_unsafe
-category: micro
+suite: micro
+category: controlled
 
-primary_label: BlockingPanic
-relation: BeforeUnsafe
-oracle_verdict: Unknown
-harness_status: LikelyValid
-reached_count: 0
+ground_truth:
+  primary_label: BlockingPanic
+  relation: BeforeUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories: []
+panic_kinds:
+  - PanicMacro
+selection:
+  reason: panic happens before any unsafe block is reached
+  negative_case: false
+  manually_labeled: true

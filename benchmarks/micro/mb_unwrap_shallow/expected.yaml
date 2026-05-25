@@ -1,11 +1,22 @@
 case_id: mb_unwrap_shallow
-category: micro
+suite: micro
+category: controlled
 
-primary_label: ContractPanic
-relation: NoneObserved
-oracle_verdict: Unknown
-harness_status: LikelyValid
-reached_count: 0
+ground_truth:
+  primary_label: ContractPanic
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
 
+dangerous_categories: []
+panic_kinds:
+  - UnwrapPanic
+selection:
+  reason: shallow unwrap panic without unsafe operations
+  negative_case: false
+  manually_labeled: true
 notes:
   - shallow unwrap panic without unsafe

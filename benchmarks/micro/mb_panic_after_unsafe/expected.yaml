@@ -1,11 +1,23 @@
 case_id: mb_panic_after_unsafe
-category: micro
+suite: micro
+category: controlled
 
-primary_label: PanicAfterUnsafe
-relation: AfterUnsafe
-oracle_verdict: Unknown
-harness_status: LikelyValid
-reached_count: 1
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
 
+dangerous_categories:
+  - UnsafeRust
+panic_kinds:
+  - PanicMacro
+selection:
+  reason: panic happens after unsafe block is reached
+  negative_case: false
+  manually_labeled: true
 notes:
   - panic happens after unsafe block is reached
