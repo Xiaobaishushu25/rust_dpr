@@ -249,43 +249,139 @@ fn collect_reached_dangerous_sites(site_map: &SiteMap, trace: &TraceLog) -> Vec<
         .collect()
 }
 
+/// Collect dangerous-site hits in the actual dynamic trace order.
+///
+/// Return format:
+/// - usize: event index in trace.events
+/// - String: dangerous site id
+///
+/// This is different from collect_reached_dangerous_sites:
+/// - collect_reached_dangerous_sites returns unique reached sites in site_map order;
+/// - collect_dangerous_hit_events returns every dangerous hit in trace event order.
+fn collect_dangerous_hit_events(site_map: &SiteMap, trace: &TraceLog) -> Vec<(usize, String)> {
+    let dangerous_ids: BTreeSet<&str> = site_map
+        .dangerous_sites
+        .iter()
+        .map(|site| site.site_id.as_str())
+        .collect();
+
+    trace
+        .events
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, event)| match event {
+            TraceEvent::Hit { site_id, .. } if dangerous_ids.contains(site_id.as_str()) => {
+                Some((idx, site_id.clone()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 fn infer_relation_evidence(
     site_map: &SiteMap,
     trace: &TraceLog,
     dpg: &DangerousPathGraph,
-    reached_dangerous_sites: &[String],
+    _reached_dangerous_sites: &[String],
 ) -> RelationEvidence {
-    let first_hit_idx = trace.events.iter().position(|e| matches!(e, TraceEvent::Hit { .. }));
-    let first_panic_idx = trace.events.iter().position(|e| matches!(e, TraceEvent::Panic { .. }));
+    let dangerous_hits = collect_dangerous_hit_events(site_map, trace);
+    let first_panic_idx = trace
+        .events
+        .iter()
+        .position(|e| matches!(e, TraceEvent::Panic { .. }));
 
-    match (first_hit_idx, first_panic_idx) {
-        (Some(hit), Some(panic)) if hit < panic => {
+    if let Some(panic_idx) = first_panic_idx {
+        // Case 1:
+        // There are dangerous hits before panic.
+        //
+        // For AfterUnsafe / PanicAfterUnsafe, "nearest dangerous site"
+        // should mean:
+        //     among all dangerous hits before panic,
+        //     choose the one with the largest event index.
+        //
+        // Example:
+        //     event[3]  = Hit(S1)
+        //     event[8]  = Hit(S2)
+        //     event[10] = Panic
+        //
+        // The nearest dangerous site is S2, not S1.
+        if let Some((hit_idx, site_id)) = dangerous_hits
+            .iter()
+            .filter(|(idx, _)| *idx < panic_idx)
+            .max_by_key(|(idx, _)| *idx)
+        {
+            let trace_gap = panic_idx - *hit_idx;
+
             return RelationEvidence {
                 relation: RelationLabel::AfterUnsafe,
-                nearest_dangerous_site: reached_dangerous_sites.first().cloned(),
+                nearest_dangerous_site: Some(site_id.clone()),
+
+                // This field still means:
+                // "distance from the current dynamic state to a dangerous site".
+                //
+                // Since the trace has already hit this dangerous site,
+                // the dangerous-site distance is 0.
+                //
+                // It does NOT mean "event distance between hit and panic".
                 distance_to_dangerous_site: Some(0),
-                explanation: Some("dynamic trace observed dangerous-site hit before panic".into()),
+
+                explanation: Some(format!(
+                    "dynamic trace observed dangerous-site hit before panic; nearest hit {} is {} event(s) before panic",
+                    site_id, trace_gap
+                )),
                 fired_rules: vec!["dynamic-after-unsafe".into()],
                 conflicting_evidence: vec![],
-            }
+            };
         }
-        (Some(hit), Some(panic)) if panic < hit => {
+
+        // Case 2:
+        // There is no dangerous hit before panic, but there may be dangerous hits after panic.
+        //
+        // For BeforeUnsafe, "nearest dangerous site" should mean:
+        //     among all dangerous hits after panic,
+        //     choose the one with the smallest event index.
+        //
+        // Example:
+        //     event[5]  = Panic
+        //     event[9]  = Hit(S1)
+        //     event[13] = Hit(S2)
+        //
+        // The nearest dangerous site is S1.
+        if let Some((hit_idx, site_id)) = dangerous_hits
+            .iter()
+            .filter(|(idx, _)| *idx > panic_idx)
+            .min_by_key(|(idx, _)| *idx)
+        {
+            let trace_gap = *hit_idx - panic_idx;
+
             return RelationEvidence {
                 relation: RelationLabel::BeforeUnsafe,
-                nearest_dangerous_site: reached_dangerous_sites.first().cloned(),
+                nearest_dangerous_site: Some(site_id.clone()),
+
+                // Same reason as above:
+                // once the dangerous site is hit in the dynamic trace,
+                // its dangerous-site distance is 0.
                 distance_to_dangerous_site: Some(0),
-                explanation: Some("dynamic trace observed panic before dangerous-site hit".into()),
+
+                explanation: Some(format!(
+                    "dynamic trace observed panic before dangerous-site hit; nearest hit {} is {} event(s) after panic",
+                    site_id, trace_gap
+                )),
                 fired_rules: vec!["dynamic-before-unsafe".into()],
                 conflicting_evidence: vec![],
-            }
+            };
         }
-        _ => {}
     }
 
-    if !trace.has_panic() && !reached_dangerous_sites.is_empty() {
+    // Case 3:
+    // There is no panic, but dangerous sites were reached.
+    //
+    // Here "nearest to panic" is not meaningful because no panic exists.
+    // So we simply report the first dangerous hit in dynamic trace order.
+    if !trace.has_panic() && !dangerous_hits.is_empty() {
         return RelationEvidence {
             relation: RelationLabel::NoneObserved,
-            nearest_dangerous_site: reached_dangerous_sites.first().cloned(),
+            nearest_dangerous_site: dangerous_hits.first().map(|(_, site_id)| site_id.clone()),
             distance_to_dangerous_site: Some(0),
             explanation: Some("dangerous site reached without panic".into()),
             fired_rules: vec!["none-observed".into()],
@@ -293,6 +389,9 @@ fn infer_relation_evidence(
         };
     }
 
+    // Case 4:
+    // Dynamic trace cannot give enough evidence.
+    // Fall back to static panic location and DPG adjacency.
     if let Some(ev) = infer_from_static_panic_location(site_map, trace, dpg) {
         return ev;
     }

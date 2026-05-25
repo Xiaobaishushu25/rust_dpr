@@ -26,6 +26,15 @@
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_before_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_unwrap_shallow/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_assume_init_ub/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_ffi_unwind_boundary/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_harness_misuse_null/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_inside_unsafe/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_set_len_then_panic/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_transmute_contract/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_double_free/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_heap_uaf/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_oob_raw/fuzz/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

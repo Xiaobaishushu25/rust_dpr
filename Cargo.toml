@@ -25,6 +25,17 @@ members = [
 exclude = [
   "benchmarks/micro/mb_panic_after_unsafe/fuzz",
   "benchmarks/micro/mb_panic_before_unsafe/fuzz",
+  "benchmarks/micro/mb_ffi_unwind_boundary/fuzz",
+  "benchmarks/micro/mb_assume_init_ub/fuzz",
+  "benchmarks/micro/mb_harness_misuse_null/fuzz",
+  "benchmarks/micro/mb_panic_inside_unsafe/fuzz",
+  "benchmarks/micro/mb_set_len_then_panic/fuzz",
+  "benchmarks/micro/mb_transmute_contract/fuzz",
+
+  "benchmarks/oracle/ob_double_free/fuzz",
+  "benchmarks/oracle/ob_heap_uaf/fuzz",
+  "benchmarks/oracle/ob_oob_raw/fuzz",
+
 ]
 resolver = "2"
 
