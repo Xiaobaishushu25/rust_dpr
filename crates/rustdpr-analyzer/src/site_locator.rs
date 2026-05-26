@@ -3,16 +3,12 @@ use rustdpr_core::{
     DangerousKind, DangerousSite, EvidenceStrength, FunctionCallEdge, FunctionIndex,
     FunctionSummary, PanicKind, PanicSite, SiteMap, SpanInfo, RUSTDPR_SCHEMA_VERSION,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{
-    Expr, ExprCall, ExprIndex, ExprMacro, ExprMethodCall, ExprPath, ExprUnary,
-    ExprUnsafe, File, ForeignItem, Item, ItemFn, ItemForeignMod, ItemImpl, ItemMod,
-    PathArguments, Stmt, TraitItem, Type, UnOp, Visibility,
-};
+use syn::{Block, Expr, ExprCall, ExprIndex, ExprMacro, ExprMethodCall, ExprPath, ExprUnary, ExprUnsafe, File, ForeignItem, Item, ItemFn, ItemForeignMod, ItemImpl, ItemMod, PathArguments, Stmt, TraitItem, Type, UnOp, Visibility};
 use walkdir::{DirEntry, WalkDir};
 
 pub fn analyze_crate(crate_root: &Path) -> Result<(SiteMap, FunctionIndex)> {
@@ -40,11 +36,14 @@ pub fn analyze_crate(crate_root: &Path) -> Result<(SiteMap, FunctionIndex)> {
         let ast: File = syn::parse_file(&content)
             .with_context(|| format!("failed to parse {}", file_path.display()))?;
 
+        let abi_functions = collect_abi_functions(&ast);
+
         let mut visitor = SiteAndCallVisitor::new(
             crate_root.clone(),
             file_path.clone(),
             &mut global_site_counter,
             &mut global_panic_counter,
+            abi_functions,
         );
         visitor.visit_file(&ast);
 
@@ -97,6 +96,7 @@ struct SiteAndCallVisitor<'a> {
     current_fn: Option<String>,
     module_stack: Vec<String>,
     raw_ptr_locals: HashSet<String>,
+    abi_functions: HashMap<String, AbiFunctionInfo>,
     global_site_counter: &'a mut usize,
     global_panic_counter: &'a mut usize,
 }
@@ -107,6 +107,7 @@ impl<'a> SiteAndCallVisitor<'a> {
         file_path: PathBuf,
         global_site_counter: &'a mut usize,
         global_panic_counter: &'a mut usize,
+        abi_functions: HashMap<String, AbiFunctionInfo>,
     ) -> Self {
         Self {
             crate_root,
@@ -118,6 +119,7 @@ impl<'a> SiteAndCallVisitor<'a> {
             current_fn: None,
             module_stack: vec![],
             raw_ptr_locals: HashSet::new(),
+            abi_functions,
             global_site_counter,
             global_panic_counter,
         }
@@ -384,6 +386,21 @@ impl<'a> SiteAndCallVisitor<'a> {
                 caller: current_fn,
                 callee,
             });
+        }
+    }
+
+    fn scan_unsafe_block_for_ffi_boundary(&self, block: &Block) -> Option<UnsafeBlockFfiSummary> {
+        let mut scanner = UnsafeBlockFfiScanner {
+            abi_functions: &self.abi_functions,
+            summary: UnsafeBlockFfiSummary::default(),
+        };
+
+        scanner.visit_block(block);
+
+        if scanner.summary.calls_abi_function {
+            Some(scanner.summary)
+        } else {
+            None
         }
     }
 
@@ -700,13 +717,36 @@ impl<'ast> Visit<'ast> for SiteAndCallVisitor<'_> {
     }
 
     fn visit_expr_unsafe(&mut self, node: &'ast ExprUnsafe) {
-        self.add_dangerous(
-            node,
-            DangerousKind::UnsafeBlock,
-            "unsafe-block",
-            "high",
-            EvidenceStrength::Strong,
-        );
+        if let Some(ffi_summary) = self.scan_unsafe_block_for_ffi_boundary(&node.block) {
+            let kind = if ffi_summary.may_unwind_or_panic {
+                DangerousKind::FfiUnwindBoundary
+            } else {
+                DangerousKind::FfiBoundary
+            };
+
+            let rule = if ffi_summary.may_unwind_or_panic {
+                "unsafe-block-ffi-unwind-boundary"
+            } else {
+                "unsafe-block-ffi-boundary"
+            };
+
+            self.add_dangerous(
+                node,
+                kind,
+                rule,
+                "high",
+                EvidenceStrength::Strong,
+            );
+        } else {
+            self.add_dangerous(
+                node,
+                DangerousKind::UnsafeBlock,
+                "unsafe-block",
+                "high",
+                EvidenceStrength::Strong,
+            );
+        }
+
         visit::visit_expr_unsafe(self, node);
     }
 
@@ -914,6 +954,215 @@ fn normalize_path(path: &str) -> String {
         .replace('<', "::")
         .replace('>', "")
         .to_lowercase()
+}
+
+#[derive(Debug, Clone, Default)]
+struct AbiFunctionInfo {
+    abi: String,
+    may_panic: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+struct UnsafeBlockFfiSummary {
+    calls_abi_function: bool,
+    may_unwind_or_panic: bool,
+}
+
+fn collect_abi_functions(ast: &File) -> HashMap<String, AbiFunctionInfo> {
+    let mut collector = AbiFunctionCollector {
+        functions: HashMap::new(),
+    };
+
+    collector.visit_file(ast);
+
+    collector.functions
+}
+
+struct AbiFunctionCollector {
+    functions: HashMap<String, AbiFunctionInfo>,
+}
+
+impl<'ast> Visit<'ast> for AbiFunctionCollector {
+    fn visit_item_fn(&mut self, node: &'ast ItemFn) {
+        if let Some(abi) = &node.sig.abi {
+            let abi_name = abi
+                .name
+                .as_ref()
+                .map(|x| x.value())
+                .unwrap_or_else(|| "unknown".to_string());
+
+            let may_panic = block_may_panic(&node.block);
+
+            self.functions.insert(
+                node.sig.ident.to_string(),
+                AbiFunctionInfo {
+                    abi: abi_name,
+                    may_panic,
+                },
+            );
+        }
+
+        visit::visit_item_fn(self, node);
+    }
+
+    fn visit_item_foreign_mod(&mut self, node: &'ast ItemForeignMod) {
+        let abi_name = node
+            .abi
+            .name
+            .as_ref()
+            .map(|x| x.value())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        for item in &node.items {
+            if let ForeignItem::Fn(f) = item {
+                self.functions.insert(
+                    f.sig.ident.to_string(),
+                    AbiFunctionInfo {
+                        abi: abi_name.clone(),
+                        may_panic: abi_name.to_lowercase().contains("unwind"),
+                    },
+                );
+            }
+        }
+
+        visit::visit_item_foreign_mod(self, node);
+    }
+}
+
+fn block_may_panic(block: &Block) -> bool {
+    let mut scanner = PanicInBlockScanner { may_panic: false };
+    scanner.visit_block(block);
+    scanner.may_panic
+}
+
+struct PanicInBlockScanner {
+    may_panic: bool,
+}
+
+impl<'ast> Visit<'ast> for PanicInBlockScanner {
+    fn visit_expr_macro(&mut self, node: &'ast ExprMacro) {
+        let name = macro_name(&node.mac.path);
+
+        if matches!(
+            name.as_str(),
+            "panic"
+                | "assert"
+                | "assert_eq"
+                | "assert_ne"
+                | "debug_assert"
+                | "debug_assert_eq"
+                | "debug_assert_ne"
+                | "todo"
+                | "unimplemented"
+                | "unreachable"
+        ) {
+            self.may_panic = true;
+        }
+
+        visit::visit_expr_macro(self, node);
+    }
+
+    fn visit_stmt(&mut self, node: &'ast Stmt) {
+        if let Stmt::Macro(stmt_macro) = node {
+            let name = macro_name(&stmt_macro.mac.path);
+
+            if matches!(
+                name.as_str(),
+                "panic"
+                    | "assert"
+                    | "assert_eq"
+                    | "assert_ne"
+                    | "debug_assert"
+                    | "debug_assert_eq"
+                    | "debug_assert_ne"
+                    | "todo"
+                    | "unimplemented"
+                    | "unreachable"
+            ) {
+                self.may_panic = true;
+            }
+        }
+
+        visit::visit_stmt(self, node);
+    }
+
+    fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
+        let method = node.method.to_string();
+
+        if method == "unwrap" || method == "expect" {
+            self.may_panic = true;
+        }
+
+        visit::visit_expr_method_call(self, node);
+    }
+
+    fn visit_expr_call(&mut self, node: &'ast ExprCall) {
+        if let Expr::Path(expr_path) = &*node.func {
+            let callee = path_to_string(expr_path).to_lowercase();
+
+            if callee == "panic" || callee.ends_with("::panic") {
+                self.may_panic = true;
+            }
+        }
+
+        visit::visit_expr_call(self, node);
+    }
+}
+
+struct UnsafeBlockFfiScanner<'a> {
+    abi_functions: &'a HashMap<String, AbiFunctionInfo>,
+    summary: UnsafeBlockFfiSummary,
+}
+
+impl<'a, 'ast> Visit<'ast> for UnsafeBlockFfiScanner<'a> {
+    fn visit_expr_call(&mut self, node: &'ast ExprCall) {
+        if let Expr::Path(expr_path) = &*node.func {
+            let callee = path_to_string(expr_path);
+            let last = last_path_segment(expr_path).unwrap_or_default();
+
+            if let Some(info) = self.abi_functions.get(&last) {
+                self.summary.calls_abi_function = true;
+
+                let abi_lower = info.abi.to_lowercase();
+
+                if info.may_panic || abi_lower.contains("unwind") || abi_lower == "c" {
+                    self.summary.may_unwind_or_panic = true;
+                }
+            }
+
+            // 兜底：如果函数名明显是 callback / ffi / extern 风格，也认为它具有 FFI-like 边界特征。
+            // 这个兜底只用于 unsafe block 内部，不会污染普通函数调用。
+            let callee_lower = callee.to_lowercase();
+            let last_lower = last.to_lowercase();
+
+            if last_lower.contains("callback")
+                || callee_lower.contains("callback")
+                || last_lower.contains("ffi")
+                || callee_lower.contains("ffi")
+            {
+                self.summary.calls_abi_function = true;
+                self.summary.may_unwind_or_panic = true;
+            }
+        }
+
+        visit::visit_expr_call(self, node);
+    }
+}
+
+fn path_to_string(expr: &ExprPath) -> String {
+    expr.path
+        .segments
+        .iter()
+        .map(|s| s.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+fn last_path_segment(expr: &ExprPath) -> Option<String> {
+    expr.path
+        .segments
+        .last()
+        .map(|s| s.ident.to_string())
 }
 
 #[allow(dead_code)]

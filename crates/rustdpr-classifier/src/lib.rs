@@ -783,8 +783,8 @@ fn dangerous_actionability(site: &DangerousSite) -> f32 {
 
         DangerousKind::FfiCallCandidate
         | DangerousKind::FfiUnwindBoundary
-        | DangerousKind::FfiBoundary => 0.68,
-        DangerousKind::FfiDeclaration => 0.45,
+        | DangerousKind::FfiBoundary => 0.84,
+        DangerousKind::FfiDeclaration => 0.55,
 
         DangerousKind::UnsafeBlock | DangerousKind::UnsafeFn | DangerousKind::UnsafeTraitImpl => 0.50,
         DangerousKind::TargetApiMisuseCandidate => 0.30,
@@ -804,7 +804,7 @@ fn dangerous_actionability(site: &DangerousSite) -> f32 {
         DangerousCategory::TypePunning => 0.88,
         DangerousCategory::DropInvariant => 0.80,
         DangerousCategory::Initialization => 0.55,
-        DangerousCategory::Ffi => 0.62,
+        DangerousCategory::Ffi => 0.78,
         DangerousCategory::UnsafeRust => 0.50,
         DangerousCategory::RuntimeCheck => 0.25,
         DangerousCategory::PanicBoundary => 0.35,

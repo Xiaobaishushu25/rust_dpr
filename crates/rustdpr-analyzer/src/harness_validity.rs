@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use rustdpr_core::{
     HarnessValidityReport, RUSTDPR_SCHEMA_VERSION, ValidityEvidence, ValidityStatus,
 };
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use syn::spanned::Spanned;
@@ -14,13 +15,16 @@ pub fn analyze_harness_validity(harness_path: &Path) -> Result<HarnessValidityRe
 
     let files = if harness_path.is_dir() {
         let mut rs_files = vec![];
+
         for entry in WalkDir::new(harness_path) {
             let entry = entry?;
             let p = entry.path();
+
             if p.is_file() && p.extension().map(|x| x == "rs").unwrap_or(false) {
                 rs_files.push(p.to_path_buf());
             }
         }
+
         rs_files
     } else {
         vec![harness_path.to_path_buf()]
@@ -29,6 +33,7 @@ pub fn analyze_harness_validity(harness_path: &Path) -> Result<HarnessValidityRe
     for file in files {
         let content = fs::read_to_string(&file)
             .with_context(|| format!("failed to read harness {}", file.display()))?;
+
         let ast: File = syn::parse_file(&content)
             .with_context(|| format!("failed to parse harness {}", file.display()))?;
 
@@ -37,11 +42,17 @@ pub fn analyze_harness_validity(harness_path: &Path) -> Result<HarnessValidityRe
             source: content,
             evidence: vec![],
         };
+
         visitor.visit_file(&ast);
-        //用文本级 fallback识别误用，不然闭包里面的代码识别不到
+
+        // syn 普通 visitor 不会深入解析 fuzz_target!(|data| { ... }) 的宏 token。
+        // 所以这里保留文本级 fallback，但必须避免误扫 use/import/module/crate name。
         visitor.scan_source_fallback();
+
         evidence.extend(visitor.evidence);
     }
+
+    dedup_evidence(&mut evidence);
 
     let violated_patterns: Vec<String> = evidence.iter().map(|e| e.rule.clone()).collect();
 
@@ -100,6 +111,7 @@ impl HarnessVisitor {
 
     fn snippet_for<T: Spanned>(&self, node: &T) -> Option<String> {
         let start = self.line_of(node);
+
         self.source
             .lines()
             .nth(start.saturating_sub(1))
@@ -118,14 +130,6 @@ impl HarnessVisitor {
         });
     }
 
-    fn path_to_string(expr: &ExprPath) -> String {
-        expr.path
-            .segments
-            .iter()
-            .map(|s| s.ident.to_string())
-            .collect::<Vec<_>>()
-            .join("::")
-    }
     fn add_textual(
         &mut self,
         line: usize,
@@ -145,68 +149,169 @@ impl HarnessVisitor {
         });
     }
 
+    fn path_segments(expr: &ExprPath) -> Vec<String> {
+        expr.path
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect()
+    }
+
+    fn path_to_string(expr: &ExprPath) -> String {
+        Self::path_segments(expr).join("::")
+    }
+
+    fn path_last_segment_is(expr: &ExprPath, name: &str) -> bool {
+        expr.path
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string() == name)
+            .unwrap_or(false)
+    }
+
+    fn path_last_segment_contains(expr: &ExprPath, needle: &str) -> bool {
+        expr.path
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string().contains(needle))
+            .unwrap_or(false)
+    }
+
+    fn path_has_segment_ignore_case(expr: &ExprPath, name: &str) -> bool {
+        expr.path
+            .segments
+            .iter()
+            .any(|seg| seg.ident.to_string().eq_ignore_ascii_case(name))
+    }
+
+    fn is_manual_trace_hit(expr: &ExprPath) -> bool {
+        let callee = Self::path_to_string(expr).to_lowercase();
+
+        callee == "hit"
+            || callee == "rustdpr_trace::hit"
+            || callee.ends_with("::hit")
+    }
+
+    fn is_target_unsafe_or_unchecked_call(expr: &ExprPath) -> bool {
+        let last = expr
+            .path
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string())
+            .unwrap_or_default();
+
+        last.starts_with("unsafe_") || last.contains("unchecked")
+    }
+
+    fn is_null_pointer_constructor(expr: &ExprPath) -> bool {
+        Self::path_last_segment_is(expr, "null")
+            || Self::path_last_segment_is(expr, "null_mut")
+    }
+
+    fn is_nonnull_new_unchecked(expr: &ExprPath) -> bool {
+        Self::path_last_segment_is(expr, "new_unchecked")
+            && Self::path_has_segment_ignore_case(expr, "NonNull")
+    }
+
+    fn is_from_raw_parts(expr: &ExprPath) -> bool {
+        Self::path_last_segment_is(expr, "from_raw_parts")
+            || Self::path_last_segment_is(expr, "from_raw_parts_mut")
+    }
+
+    fn is_vec_from_raw_parts(expr: &ExprPath) -> bool {
+        Self::path_last_segment_is(expr, "from_raw_parts")
+            && Self::path_has_segment_ignore_case(expr, "Vec")
+    }
+
+    fn is_box_from_raw(expr: &ExprPath) -> bool {
+        Self::path_last_segment_is(expr, "from_raw")
+            && Self::path_has_segment_ignore_case(expr, "Box")
+    }
+
+    fn is_transmute_call(expr: &ExprPath) -> bool {
+        Self::path_last_segment_is(expr, "transmute")
+    }
+
+    fn is_assume_init_call(expr: &ExprPath) -> bool {
+        Self::path_last_segment_is(expr, "assume_init")
+    }
+
+    fn is_raw_pointer_primitive(expr: &ExprPath) -> bool {
+        let last = expr
+            .path
+            .segments
+            .last()
+            .map(|seg| seg.ident.to_string())
+            .unwrap_or_default();
+
+        let is_ptr_namespace = Self::path_has_segment_ignore_case(expr, "ptr");
+
+        is_ptr_namespace
+            && matches!(
+                last.as_str(),
+                "read" | "write" | "copy_nonoverlapping" | "copy" | "copy_to" | "copy_to_nonoverlapping"
+            )
+    }
+
     fn scan_source_fallback(&mut self) {
         let lines: Vec<String> = self.source.lines().map(|s| s.to_string()).collect();
 
         for (idx, raw) in lines.iter().enumerate() {
             let line_no = idx + 1;
-            let trimmed = raw.trim();
-            let lower = trimmed.to_lowercase();
 
-            if trimmed.starts_with("//") {
+            let Some(code) = normalize_code_line(raw) else {
                 continue;
-            }
+            };
 
-            if lower.contains("std::ptr::null")
-                || lower.contains("ptr::null")
-                || lower.contains("null_mut")
-            {
+            let lower = code.to_lowercase();
+
+            if looks_like_null_pointer_construction(&lower) {
                 self.add_textual(
                     line_no,
                     "null-pointer-construction",
                     "high",
                     "harness constructs a null pointer",
-                    trimmed,
+                    &code,
                 );
             }
 
-            if lower.contains("unsafe {") || lower.starts_with("unsafe{") {
+            if looks_like_direct_unsafe_block(&lower) {
                 self.add_textual(
                     line_no,
                     "direct-unsafe-block",
                     "high",
                     "harness contains an explicit unsafe block",
-                    trimmed,
+                    &code,
                 );
             }
 
-            if lower.contains("from_raw_parts") {
+            if looks_like_from_raw_parts(&lower) {
                 self.add_textual(
                     line_no,
                     "from-raw-parts",
                     "high",
                     "harness constructs a slice from raw parts",
-                    trimmed,
+                    &code,
                 );
             }
 
-            if lower.contains("transmute") {
+            if looks_like_transmute_call(&lower) {
                 self.add_textual(
                     line_no,
                     "transmute-in-harness",
                     "high",
                     "harness performs transmute directly",
-                    trimmed,
+                    &code,
                 );
             }
 
-            if lower.contains("assume_init") {
+            if looks_like_assume_init_call(&lower) {
                 self.add_textual(
                     line_no,
                     "assume-init-in-harness",
                     "high",
                     "harness assumes MaybeUninit initialized state",
-                    trimmed,
+                    &code,
                 );
             }
         }
@@ -221,14 +326,13 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
             "high",
             "harness contains an explicit unsafe block",
         );
+
         visit::visit_expr_unsafe(self, node);
     }
 
     fn visit_expr_call(&mut self, node: &'ast ExprCall) {
         if let syn::Expr::Path(expr_path) = &*node.func {
-            let callee = Self::path_to_string(expr_path).to_lowercase();
-
-            if callee.contains("rustdpr_trace::hit") || callee == "hit" || callee.ends_with("::hit") {
+            if Self::is_manual_trace_hit(expr_path) {
                 self.add(
                     node,
                     "manual-hit-in-harness",
@@ -237,7 +341,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.starts_with("unsafe_") || callee.contains("::unsafe_") || callee.contains("unchecked") {
+            if Self::is_target_unsafe_or_unchecked_call(expr_path) {
                 self.add(
                     node,
                     "target-api-unsafe-or-unchecked-call",
@@ -246,7 +350,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.contains("null") {
+            if Self::is_null_pointer_constructor(expr_path) {
                 self.add(
                     node,
                     "null-pointer-construction",
@@ -255,7 +359,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.contains("nonnull::new_unchecked") {
+            if Self::is_nonnull_new_unchecked(expr_path) {
                 self.add(
                     node,
                     "nonnull-new-unchecked",
@@ -264,7 +368,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.contains("from_raw_parts") || callee.contains("from_raw_parts_mut") {
+            if Self::is_from_raw_parts(expr_path) {
                 self.add(
                     node,
                     "from-raw-parts",
@@ -273,7 +377,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.contains("vec::from_raw_parts") {
+            if Self::is_vec_from_raw_parts(expr_path) {
                 self.add(
                     node,
                     "vec-from-raw-parts",
@@ -282,7 +386,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.contains("box::from_raw") {
+            if Self::is_box_from_raw(expr_path) {
                 self.add(
                     node,
                     "box-from-raw",
@@ -291,7 +395,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.contains("transmute") {
+            if Self::is_transmute_call(expr_path) {
                 self.add(
                     node,
                     "transmute-in-harness",
@@ -300,7 +404,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.contains("assume_init") {
+            if Self::is_assume_init_call(expr_path) {
                 self.add(
                     node,
                     "assume-init-in-harness",
@@ -309,7 +413,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 );
             }
 
-            if callee.contains("copy_nonoverlapping") || callee.contains("ptr::write") || callee.contains("ptr::read") {
+            if Self::is_raw_pointer_primitive(expr_path) {
                 self.add(
                     node,
                     "raw-pointer-primitive",
@@ -322,7 +426,6 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
         visit::visit_expr_call(self, node);
     }
 
-
     fn visit_expr_unary(&mut self, node: &'ast ExprUnary) {
         if matches!(node.op, UnOp::Deref(_)) {
             self.add(
@@ -332,6 +435,7 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
                 "harness dereferences through unary *; verify this is not constructing invalid target state",
             );
         }
+
         visit::visit_expr_unary(self, node);
     }
 
@@ -368,4 +472,91 @@ impl<'ast> Visit<'ast> for HarnessVisitor {
 
         visit::visit_expr_method_call(self, node);
     }
+}
+
+fn normalize_code_line(raw: &str) -> Option<String> {
+    let mut s = raw.trim().to_string();
+
+    if let Some(pos) = s.find("//") {
+        s.truncate(pos);
+    }
+
+    let s = s.trim();
+
+    if s.is_empty() {
+        return None;
+    }
+
+    if s.starts_with("//")
+        || s.starts_with("#[")
+        || s.starts_with("use ")
+        || s.starts_with("pub use ")
+        || s.starts_with("extern crate ")
+        || s.starts_with("mod ")
+        || s.starts_with("pub mod ")
+    {
+        return None;
+    }
+
+    Some(s.to_string())
+}
+
+fn looks_like_direct_unsafe_block(line: &str) -> bool {
+    line.contains("unsafe {") || line.contains("unsafe{")
+}
+
+fn looks_like_null_pointer_construction(line: &str) -> bool {
+    line.contains("std::ptr::null::<")
+        || line.contains("std::ptr::null(")
+        || line.contains("ptr::null::<")
+        || line.contains("ptr::null(")
+        || line.contains("std::ptr::null_mut::<")
+        || line.contains("std::ptr::null_mut(")
+        || line.contains("ptr::null_mut::<")
+        || line.contains("ptr::null_mut(")
+}
+
+fn looks_like_from_raw_parts(line: &str) -> bool {
+    line.contains("from_raw_parts(")
+        || line.contains("from_raw_parts::<")
+        || line.contains("from_raw_parts_mut(")
+        || line.contains("from_raw_parts_mut::<")
+        || line.contains("::from_raw_parts(")
+        || line.contains("::from_raw_parts::<")
+        || line.contains("::from_raw_parts_mut(")
+        || line.contains("::from_raw_parts_mut::<")
+}
+
+fn looks_like_transmute_call(line: &str) -> bool {
+    line.contains("std::mem::transmute(")
+        || line.contains("std::mem::transmute::<")
+        || line.contains("mem::transmute(")
+        || line.contains("mem::transmute::<")
+        || line.contains("::transmute(")
+        || line.contains("::transmute::<")
+        || line.starts_with("transmute(")
+        || line.starts_with("transmute::<")
+}
+
+fn looks_like_assume_init_call(line: &str) -> bool {
+    line.contains(".assume_init(")
+        || line.contains(".assume_init::<")
+        || line.contains("::assume_init(")
+        || line.contains("::assume_init::<")
+        || line.starts_with("assume_init(")
+        || line.starts_with("assume_init::<")
+}
+
+fn dedup_evidence(evidence: &mut Vec<ValidityEvidence>) {
+    let mut seen = HashSet::new();
+
+    evidence.retain(|e| {
+        seen.insert((
+            e.rule.clone(),
+            e.file.clone(),
+            e.line,
+            e.span_end_line,
+            e.snippet.clone().unwrap_or_default(),
+        ))
+    });
 }
