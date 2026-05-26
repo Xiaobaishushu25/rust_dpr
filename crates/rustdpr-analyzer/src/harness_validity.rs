@@ -38,6 +38,8 @@ pub fn analyze_harness_validity(harness_path: &Path) -> Result<HarnessValidityRe
             evidence: vec![],
         };
         visitor.visit_file(&ast);
+        //用文本级 fallback识别误用，不然闭包里面的代码识别不到
+        visitor.scan_source_fallback();
         evidence.extend(visitor.evidence);
     }
 
@@ -123,6 +125,91 @@ impl HarnessVisitor {
             .map(|s| s.ident.to_string())
             .collect::<Vec<_>>()
             .join("::")
+    }
+    fn add_textual(
+        &mut self,
+        line: usize,
+        rule: &str,
+        severity: &str,
+        message: &str,
+        snippet: &str,
+    ) {
+        self.evidence.push(ValidityEvidence {
+            rule: rule.to_string(),
+            severity: severity.to_string(),
+            message: message.to_string(),
+            file: self.file.clone(),
+            line,
+            span_end_line: Some(line),
+            snippet: Some(snippet.trim().to_string()),
+        });
+    }
+
+    fn scan_source_fallback(&mut self) {
+        let lines: Vec<String> = self.source.lines().map(|s| s.to_string()).collect();
+
+        for (idx, raw) in lines.iter().enumerate() {
+            let line_no = idx + 1;
+            let trimmed = raw.trim();
+            let lower = trimmed.to_lowercase();
+
+            if trimmed.starts_with("//") {
+                continue;
+            }
+
+            if lower.contains("std::ptr::null")
+                || lower.contains("ptr::null")
+                || lower.contains("null_mut")
+            {
+                self.add_textual(
+                    line_no,
+                    "null-pointer-construction",
+                    "high",
+                    "harness constructs a null pointer",
+                    trimmed,
+                );
+            }
+
+            if lower.contains("unsafe {") || lower.starts_with("unsafe{") {
+                self.add_textual(
+                    line_no,
+                    "direct-unsafe-block",
+                    "high",
+                    "harness contains an explicit unsafe block",
+                    trimmed,
+                );
+            }
+
+            if lower.contains("from_raw_parts") {
+                self.add_textual(
+                    line_no,
+                    "from-raw-parts",
+                    "high",
+                    "harness constructs a slice from raw parts",
+                    trimmed,
+                );
+            }
+
+            if lower.contains("transmute") {
+                self.add_textual(
+                    line_no,
+                    "transmute-in-harness",
+                    "high",
+                    "harness performs transmute directly",
+                    trimmed,
+                );
+            }
+
+            if lower.contains("assume_init") {
+                self.add_textual(
+                    line_no,
+                    "assume-init-in-harness",
+                    "high",
+                    "harness assumes MaybeUninit initialized state",
+                    trimmed,
+                );
+            }
+        }
     }
 }
 
