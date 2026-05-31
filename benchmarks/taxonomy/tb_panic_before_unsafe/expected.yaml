@@ -1,11 +1,32 @@
 case_id: tb_panic_before_unsafe
+suite: taxonomy
 category: taxonomy
 
-primary_label: BlockingPanic
-relation: BeforeUnsafe
-oracle_verdict: Unknown
-harness_status: LikelyValid
-reached_count: 0
+source:
+  crate_name: tb_panic_before_unsafe
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
 
+ground_truth:
+  primary_label: BlockingPanic
+  relation: BeforeUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories: []
+panic_kinds:
+  - PanicMacro
+harness:
+  path: tests
+  validity_rationale: deterministic taxonomy case
+selection:
+  reason: panic should happen before dangerous site is reached
+  negative_case: true
+  manually_labeled: true
 notes:
   - panic should happen before dangerous site is reached

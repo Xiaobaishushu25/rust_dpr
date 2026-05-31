@@ -1,11 +1,32 @@
 case_id: ob_oob_raw
+suite: oracle
 category: oracle
 
-primary_label: OracleConfirmedBug
-relation: AfterUnsafe
-oracle_verdict: AddressSanitizerOutOfBounds
-harness_status: LikelyValid
-reached_count: 1
+source:
+  crate_name: ob_oob_raw
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
 
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: AfterUnsafe
+  oracle_verdict: AddressSanitizerOutOfBounds
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+harness:
+  path: fuzz
+  validity_rationale: deterministic oracle case with local harness
+selection:
+  reason: oracle should confirm out-of-bounds memory access specifically
+  negative_case: false
+  manually_labeled: true
 notes:
   - oracle should confirm out-of-bounds memory access specifically
