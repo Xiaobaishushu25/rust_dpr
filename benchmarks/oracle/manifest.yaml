@@ -1,0 +1,7 @@
+suite: oracle
+cases:
+  - ob_double_free
+  - ob_heap_uaf
+  - ob_oob_raw
+  - ob_invalid_free
+  - ob_use_after_scope

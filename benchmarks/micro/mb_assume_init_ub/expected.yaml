@@ -2,6 +2,13 @@ case_id: mb_assume_init_ub
 suite: micro
 category: controlled
 
+source:
+  crate_name: mb_assume_init_ub
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
 ground_truth:
   primary_label: SuspiciousCandidate
   relation: AfterUnsafe
@@ -15,7 +22,12 @@ dangerous_categories:
   - Initialization
 panic_kinds:
   - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case with deterministic unit test and local fuzz harness
 selection:
   reason: MaybeUninit::assume_init is executed before panic and should remain review-worthy
   negative_case: false
   manually_labeled: true
+notes:
+  - MaybeUninit::assume_init is executed before panic and should remain review-worthy

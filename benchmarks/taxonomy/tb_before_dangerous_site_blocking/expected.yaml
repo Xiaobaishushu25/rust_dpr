@@ -1,0 +1,33 @@
+case_id: tb_before_dangerous_site_blocking
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_before_dangerous_site_blocking
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: BlockingPanic
+  relation: BeforeUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - PanicMacro
+harness:
+  path: tests
+  validity_rationale: deterministic panic occurs before the raw-pointer read can execute
+selection:
+  reason: taxonomy case for a blocking panic before a dangerous site
+  negative_case: true
+  manually_labeled: true
+notes:
+  - no dangerous-site hit should be present in the trace

@@ -1,0 +1,32 @@
+case_id: ob_invalid_free
+suite: oracle
+category: oracle
+
+source:
+  crate_name: ob_invalid_free
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: AfterUnsafe
+  oracle_verdict: AddressSanitizerInvalidFree
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationOwnership
+panic_kinds: []
+harness:
+  path: tests
+  validity_rationale: deterministic invalid free oracle case
+selection:
+  reason: oracle should confirm freeing a pointer that was not allocated by the global allocator
+  negative_case: false
+  manually_labeled: true
+notes:
+  - ASan should classify this as invalid free or bad free

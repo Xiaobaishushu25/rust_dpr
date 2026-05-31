@@ -1,0 +1,32 @@
+case_id: ob_use_after_scope
+suite: oracle
+category: oracle
+
+source:
+  crate_name: ob_use_after_scope
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: AfterUnsafe
+  oracle_verdict: MiriUndefinedBehavior
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+harness:
+  path: tests
+  validity_rationale: deterministic raw pointer use after stack scope ends
+selection:
+  reason: Miri should confirm use of a raw pointer whose referent is out of scope
+  negative_case: false
+  manually_labeled: true
+notes:
+  - ASan may report stack-use-after-scope when compiled with compatible instrumentation; Miri is the primary oracle label here

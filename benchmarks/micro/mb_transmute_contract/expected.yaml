@@ -2,6 +2,13 @@ case_id: mb_transmute_contract
 suite: micro
 category: controlled
 
+source:
+  crate_name: mb_transmute_contract
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
 ground_truth:
   primary_label: PanicAfterUnsafe
   relation: AfterUnsafe
@@ -15,7 +22,12 @@ dangerous_categories:
   - TypePunning
 panic_kinds:
   - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case with deterministic unit test and local fuzz harness
 selection:
   reason: panic follows transmute-based conversion and should not be collapsed into shallow contract panic
   negative_case: false
   manually_labeled: true
+notes:
+  - panic follows transmute-based conversion and should not be collapsed into shallow contract panic

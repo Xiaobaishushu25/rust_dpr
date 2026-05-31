@@ -22,6 +22,21 @@
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_inside_unsafe/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_set_len_then_panic/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_transmute_contract/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_drop_then_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_maybeuninit_read/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_raw_ptr_read_then_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_raw_ptr_write_then_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_slice_from_raw_parts/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_unchecked_index/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_invalid_free/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_use_after_scope/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_adjacent_unsafe_no_hit/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_after_raw_pointer_write/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_before_dangerous_site_blocking/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_contract_panic_no_unsafe/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_harness_misuse_invalid_input/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_inside_unsafe_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_panic_after_drop_invariant/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_before_unsafe/fuzz/target" />
@@ -35,6 +50,17 @@
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_double_free/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_heap_uaf/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_oob_raw/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_drop_then_panic/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_maybeuninit_read/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_raw_ptr_read_then_panic/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_raw_ptr_write_then_panic/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_slice_from_raw_parts/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_unchecked_index/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_adjacent_unsafe_no_hit/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_after_raw_pointer_write/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_before_dangerous_site_blocking/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_contract_panic_no_unsafe/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_panic_before_unsafe/fuzz/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

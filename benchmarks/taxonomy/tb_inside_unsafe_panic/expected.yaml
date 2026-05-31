@@ -1,0 +1,33 @@
+case_id: tb_inside_unsafe_panic
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_inside_unsafe_panic
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: InsideUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - UnsafeRust
+panic_kinds:
+  - PanicMacro
+harness:
+  path: tests
+  validity_rationale: deterministic panic occurs syntactically inside unsafe block
+selection:
+  reason: taxonomy case for panic located inside an unsafe region
+  negative_case: false
+  manually_labeled: true
+notes:
+  - should be separated from PanicAfterUnsafe

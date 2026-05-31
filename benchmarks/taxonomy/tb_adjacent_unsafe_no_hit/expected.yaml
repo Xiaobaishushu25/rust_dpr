@@ -1,0 +1,33 @@
+case_id: tb_adjacent_unsafe_no_hit
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_adjacent_unsafe_no_hit
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: SuspiciousCandidate
+  relation: AdjacentToUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - PanicMacro
+harness:
+  path: tests
+  validity_rationale: deterministic panic in caller is statically adjacent to unsafe callee but does not hit it
+selection:
+  reason: taxonomy case for graph-adjacent unsafe evidence without dynamic hit
+  negative_case: false
+  manually_labeled: true
+notes:
+  - intended to exercise DPG adjacency rather than dynamic hit evidence

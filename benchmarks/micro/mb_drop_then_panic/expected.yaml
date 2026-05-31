@@ -1,0 +1,34 @@
+case_id: mb_drop_then_panic
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_drop_then_panic
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationOwnership
+  - DropInvariant
+panic_kinds:
+  - AssertMacro
+harness:
+  path: tests
+  validity_rationale: controlled micro case with deterministic unit test harness
+selection:
+  reason: manual ownership drop via Box::from_raw is executed before panic
+  negative_case: false
+  manually_labeled: true
+notes:
+  - covers allocation ownership and drop-sensitive cleanup paths

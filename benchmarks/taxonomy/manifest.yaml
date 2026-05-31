@@ -1,0 +1,10 @@
+suite: taxonomy
+cases:
+  - tb_panic_before_unsafe
+  - tb_inside_unsafe_panic
+  - tb_after_raw_pointer_write
+  - tb_before_dangerous_site_blocking
+  - tb_adjacent_unsafe_no_hit
+  - tb_contract_panic_no_unsafe
+  - tb_harness_misuse_invalid_input
+  - tb_panic_after_drop_invariant

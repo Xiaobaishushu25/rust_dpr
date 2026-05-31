@@ -1,7 +1,7 @@
-{"EnterFunction":{"function":"crate::process","ts_millis":1779719135427,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
-{"Hit":{"site_id":"S00001","ts_millis":1779719135428,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
-{"EnterFunction":{"function":"crate::process","ts_millis":1779719135427,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
-{"Panic":{"message":"out must not be zero after unsafe write","file":"benchmarks\\micro\\mb_panic_after_unsafe\\src\\lib.rs","line":20,"ts_millis":1779719135428,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
-{"Hit":{"site_id":"S00001","ts_millis":1779719135428,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
-{"ExitFunction":{"function":"crate::process","ts_millis":1779719135428,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
-{"ExitFunction":{"function":"crate::process","ts_millis":1779719135428,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
+{"EnterFunction":{"function":"crate::process","ts_millis":1779806509881,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
+{"EnterFunction":{"function":"crate::process","ts_millis":1779806509881,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
+{"Hit":{"site_id":"S00001","ts_millis":1779806509881,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
+{"Hit":{"site_id":"S00001","ts_millis":1779806509881,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
+{"ExitFunction":{"function":"crate::process","ts_millis":1779806509881,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
+{"Panic":{"message":"out must not be zero after unsafe write","file":"benchmarks\\micro\\mb_panic_after_unsafe\\src\\lib.rs","line":20,"ts_millis":1779806509881,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
+{"ExitFunction":{"function":"crate::process","ts_millis":1779806509881,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}

@@ -2,6 +2,13 @@ case_id: mb_harness_misuse_null
 suite: micro
 category: controlled
 
+source:
+  crate_name: mb_harness_misuse_null
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
 ground_truth:
   primary_label: HarnessMisuse
   relation: NoneObserved
@@ -15,7 +22,12 @@ dangerous_categories:
   - RawPointer
 panic_kinds:
   - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case whose harness intentionally violates target preconditions
 selection:
   reason: null pointer is constructed by harness rather than triggered by target semantics
   negative_case: true
   manually_labeled: true
+notes:
+  - null pointer is constructed by harness rather than triggered by target semantics

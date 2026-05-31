@@ -2,6 +2,13 @@ case_id: mb_panic_after_unsafe
 suite: micro
 category: controlled
 
+source:
+  crate_name: mb_panic_after_unsafe
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
 ground_truth:
   primary_label: PanicAfterUnsafe
   relation: AfterUnsafe
@@ -15,6 +22,9 @@ dangerous_categories:
   - UnsafeRust
 panic_kinds:
   - PanicMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case with deterministic unit test and local fuzz harness
 selection:
   reason: panic happens after unsafe block is reached
   negative_case: false

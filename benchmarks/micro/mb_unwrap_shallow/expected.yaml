@@ -2,6 +2,13 @@ case_id: mb_unwrap_shallow
 suite: micro
 category: controlled
 
+source:
+  crate_name: mb_unwrap_shallow
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
 ground_truth:
   primary_label: ContractPanic
   relation: NoneObserved
@@ -14,6 +21,9 @@ ground_truth:
 dangerous_categories: []
 panic_kinds:
   - UnwrapPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case with deterministic unit test and local fuzz harness
 selection:
   reason: shallow unwrap panic without unsafe operations
   negative_case: false

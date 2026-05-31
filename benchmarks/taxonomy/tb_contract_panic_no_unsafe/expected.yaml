@@ -1,0 +1,33 @@
+case_id: tb_contract_panic_no_unsafe
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_contract_panic_no_unsafe
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: ContractPanic
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories: []
+panic_kinds:
+  - ExpectLike
+  - AssertMacro
+harness:
+  path: tests
+  validity_rationale: deterministic contract panic with no unsafe or dangerous path
+selection:
+  reason: negative taxonomy case for ordinary API contract panic
+  negative_case: true
+  manually_labeled: true
+notes:
+  - should not be promoted to unsafe-related candidate

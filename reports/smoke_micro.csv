@@ -1,10 +1,10 @@
 suite,case,tool,variant,seed,run_index,budget_seconds,return_code,primary_label,relation,oracle_verdict,harness_status,distance_to_dangerous_site,reached_dangerous_sites,notes_count,review_required,confidence,schema_version
-micro,mb_assume_init_ub,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,0,1,1,False,0.93,0.2.0
-micro,mb_ffi_unwind_boundary,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,0,1,1,False,0.93,0.2.0
-micro,mb_harness_misuse_null,rustdpr,full,1,1,0,0,InsideUnsafePanic,InsideUnsafe,Unknown,LikelyValid,0,0,1,False,0.92,0.2.0
-micro,mb_panic_after_unsafe,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,0,1,1,False,0.93,0.2.0
+micro,mb_assume_init_ub,rustdpr,full,1,1,0,0,SuspiciousCandidate,AfterUnsafe,Unknown,LikelyValid,0,1,1,True,0.72,0.2.0
+micro,mb_ffi_unwind_boundary,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,0,1,1,False,0.9,0.2.0
+micro,mb_harness_misuse_null,rustdpr,full,1,1,0,0,HarnessMisuse,NoneObserved,Unknown,LikelyMisuse,,0,1,False,0.95,0.2.0
+micro,mb_panic_after_unsafe,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,1,1,1,False,0.9,0.2.0
 micro,mb_panic_before_unsafe,rustdpr,full,1,1,0,0,BlockingPanic,BeforeUnsafe,Unknown,LikelyValid,1,0,1,False,0.86,0.2.0
-micro,mb_panic_inside_unsafe,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,0,1,1,False,0.93,0.2.0
-micro,mb_set_len_then_panic,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,0,1,1,False,0.93,0.2.0
-micro,mb_transmute_contract,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,0,1,1,False,0.93,0.2.0
+micro,mb_panic_inside_unsafe,rustdpr,full,1,1,0,0,InsideUnsafePanic,InsideUnsafe,Unknown,LikelyValid,0,1,1,False,0.92,0.2.0
+micro,mb_set_len_then_panic,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,1,1,1,False,0.9,0.2.0
+micro,mb_transmute_contract,rustdpr,full,1,1,0,0,PanicAfterUnsafe,AfterUnsafe,Unknown,LikelyValid,1,1,1,False,0.9,0.2.0
 micro,mb_unwrap_shallow,rustdpr,full,1,1,0,0,ContractPanic,NoneObserved,Unknown,LikelyValid,,0,1,True,0.68,0.2.0

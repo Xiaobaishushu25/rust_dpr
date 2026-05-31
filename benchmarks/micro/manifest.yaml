@@ -9,3 +9,9 @@ cases:
   - mb_set_len_then_panic
   - mb_assume_init_ub
   - mb_transmute_contract
+  - mb_raw_ptr_read_then_panic
+  - mb_raw_ptr_write_then_panic
+  - mb_drop_then_panic
+  - mb_slice_from_raw_parts
+  - mb_unchecked_index
+  - mb_maybeuninit_read

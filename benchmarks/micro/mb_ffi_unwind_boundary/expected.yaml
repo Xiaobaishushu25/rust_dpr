@@ -2,6 +2,13 @@ case_id: mb_ffi_unwind_boundary
 suite: micro
 category: controlled
 
+source:
+  crate_name: mb_ffi_unwind_boundary
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
 ground_truth:
   primary_label: PanicAfterUnsafe
   relation: AfterUnsafe
@@ -15,7 +22,12 @@ dangerous_categories:
   - Ffi
 panic_kinds:
   - PanicMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case with deterministic unit test and local fuzz harness
 selection:
   reason: controlled panic after crossing ffi-like callback boundary
   negative_case: false
   manually_labeled: true
+notes:
+  - controlled panic after crossing ffi-like callback boundary

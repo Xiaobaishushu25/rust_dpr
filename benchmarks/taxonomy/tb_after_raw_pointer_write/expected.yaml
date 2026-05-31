@@ -1,0 +1,33 @@
+case_id: tb_after_raw_pointer_write
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_after_raw_pointer_write
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - AssertMacro
+harness:
+  path: tests
+  validity_rationale: deterministic path reaches raw pointer write before panic
+selection:
+  reason: taxonomy case for panic after an executed raw pointer write
+  negative_case: false
+  manually_labeled: true
+notes:
+  - dynamic hit should precede the panic event

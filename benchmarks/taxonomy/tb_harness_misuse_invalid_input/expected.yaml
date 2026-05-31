@@ -1,0 +1,33 @@
+case_id: tb_harness_misuse_invalid_input
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_harness_misuse_invalid_input
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: HarnessMisuse
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: LikelyMisuse
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: harness can fabricate a null pointer and violate target preconditions
+selection:
+  reason: taxonomy case where panic is caused by invalid harness input rather than target bug
+  negative_case: true
+  manually_labeled: true
+notes:
+  - validate-harness should mark direct unsafe/null-pointer construction as misuse

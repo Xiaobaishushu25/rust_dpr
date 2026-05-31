@@ -162,6 +162,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mb_drop_then_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "mb_ffi_unwind_boundary"
 version = "0.1.0"
 dependencies = [
@@ -170,6 +177,13 @@ dependencies = [
 
 [[package]]
 name = "mb_harness_misuse_null"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_maybeuninit_read"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -197,6 +211,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mb_raw_ptr_read_then_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_raw_ptr_write_then_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "mb_set_len_then_panic"
 version = "0.1.0"
 dependencies = [
@@ -204,7 +232,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mb_slice_from_raw_parts"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "mb_transmute_contract"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_unchecked_index"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -238,7 +280,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ob_invalid_free"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "ob_oob_raw"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_use_after_scope"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -429,6 +485,55 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tb_adjacent_unsafe_no_hit"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_after_raw_pointer_write"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_before_dangerous_site_blocking"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_contract_panic_no_unsafe"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_harness_misuse_invalid_input"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_inside_unsafe_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_panic_after_drop_invariant"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
 ]
 
 [[package]]

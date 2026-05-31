@@ -2,6 +2,13 @@ case_id: mb_panic_before_unsafe
 suite: micro
 category: controlled
 
+source:
+  crate_name: mb_panic_before_unsafe
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
 ground_truth:
   primary_label: BlockingPanic
   relation: BeforeUnsafe
@@ -14,7 +21,12 @@ ground_truth:
 dangerous_categories: []
 panic_kinds:
   - PanicMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case with deterministic unit test and local fuzz harness
 selection:
   reason: panic happens before any unsafe block is reached
   negative_case: false
   manually_labeled: true
+notes:
+  - panic happens before any unsafe block is reached

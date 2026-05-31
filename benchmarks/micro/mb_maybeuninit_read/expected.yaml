@@ -1,0 +1,33 @@
+case_id: mb_maybeuninit_read
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_maybeuninit_read
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: SuspiciousCandidate
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - Initialization
+panic_kinds:
+  - AssertMacro
+harness:
+  path: tests
+  validity_rationale: controlled micro case with deterministic unit test harness
+selection:
+  reason: MaybeUninit materialization/read happens before panic and should remain review-worthy
+  negative_case: false
+  manually_labeled: true
+notes:
+  - covers initialization-sensitive evidence distinct from raw pointer memory bugs
