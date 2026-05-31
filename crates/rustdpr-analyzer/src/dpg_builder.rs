@@ -46,32 +46,41 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
         }
     }
 
+    let known_functions: Vec<String> = function_index
+        .functions
+        .iter()
+        .map(|f| f.function_id.clone())
+        .collect();
+
     for edge in &function_index.call_edges {
+        let caller = resolve_function_id(&edge.caller, &known_functions);
+        let callee = resolve_function_id(&edge.callee, &known_functions);
+
         insert_node(
             &mut nodes,
             &mut seen_nodes,
             DpgNode {
-                id: edge.caller.clone(),
-                label: edge.caller.clone(),
+                id: caller.clone(),
+                label: caller.clone(),
                 kind: DpgNodeKind::Function,
-                normalized_id: normalize_symbol(&edge.caller),
+                normalized_id: normalize_symbol(&caller),
             },
         );
         insert_node(
             &mut nodes,
             &mut seen_nodes,
             DpgNode {
-                id: edge.callee.clone(),
-                label: edge.callee.clone(),
+                id: callee.clone(),
+                label: callee.clone(),
                 kind: DpgNodeKind::Function,
-                normalized_id: normalize_symbol(&edge.callee),
+                normalized_id: normalize_symbol(&callee),
             },
         );
         insert_edge(
             &mut edges,
             &mut seen_edges,
-            edge.caller.clone(),
-            edge.callee.clone(),
+            caller,
+            callee,
             DpgEdgeKind::Calls,
             0.7,
             "static",
@@ -205,4 +214,32 @@ fn insert_edge(
             support_count: 1,
         });
     }
+}
+fn resolve_function_id(raw: &str, known_functions: &[String]) -> String {
+    let raw_norm = normalize_symbol(raw);
+
+    if let Some(exact) = known_functions
+        .iter()
+        .find(|id| normalize_symbol(id) == raw_norm)
+    {
+        return exact.clone();
+    }
+
+    let local = raw.rsplit("::").next().unwrap_or(raw);
+    let local_norm = normalize_symbol(local);
+    let suffix = format!("::{local_norm}");
+
+    let matches: Vec<&String> = known_functions
+        .iter()
+        .filter(|id| {
+            let id_norm = normalize_symbol(id);
+            id_norm == local_norm || id_norm.ends_with(&suffix)
+        })
+        .collect();
+
+    if matches.len() == 1 {
+        return matches[0].clone();
+    }
+
+    raw.to_string()
 }

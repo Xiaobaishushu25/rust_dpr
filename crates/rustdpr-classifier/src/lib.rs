@@ -452,7 +452,8 @@ fn infer_relation_evidence(
         };
     }
 
-    infer_from_graph_adjacency(trace, dpg)
+    // infer_from_graph_adjacency(trace, dpg)
+    infer_from_graph_adjacency(site_map, trace, dpg, &panic)
 }
 
 fn first_panic_location(trace: &TraceLog) -> Option<PanicLocation> {
@@ -845,8 +846,75 @@ fn same_site_id(a: &str, b: &str) -> bool {
     a == b || a.ends_with(b) || b.ends_with(a)
 }
 
-fn infer_from_graph_adjacency(trace: &TraceLog, dpg: &DangerousPathGraph) -> RelationEvidence {
+// fn infer_from_graph_adjacency(trace: &TraceLog, dpg: &DangerousPathGraph) -> RelationEvidence {
+//     if let Some(panic_fn) = infer_panic_function_hint(trace) {
+//         let distance = dpg.shortest_distance_to_any_dangerous_site(&panic_fn);
+//         if let Some(d) = distance.distance {
+//             if d <= 2 {
+//                 return RelationEvidence {
+//                     relation: RelationLabel::AdjacentToUnsafe,
+//                     nearest_dangerous_site: distance.nearest_site,
+//                     distance_to_dangerous_site: Some(d),
+//                     explanation: Some(format!(
+//                         "panic function {} is statically adjacent to dangerous site (distance={})",
+//                         panic_fn, d
+//                     )),
+//                     fired_rules: vec!["graph-adjacent".into()],
+//                     conflicting_evidence: vec![],
+//                     site_kind: None,
+//                     actionability: None,
+//                     candidate_score: None,
+//                 };
+//             }
+//         }
+//     }
+//
+//     RelationEvidence {
+//         relation: RelationLabel::NoneObserved,
+//         nearest_dangerous_site: None,
+//         distance_to_dangerous_site: None,
+//         explanation: Some(
+//             "panic observed but no dangerous-site evidence or unsafe adjacency was found".into(),
+//         ),
+//         fired_rules: vec!["fallback-none-observed".into()],
+//         conflicting_evidence: vec![],
+//         site_kind: None,
+//         actionability: None,
+//         candidate_score: None,
+//     }
+// }
+fn infer_from_graph_adjacency(
+    site_map: &SiteMap,
+    trace: &TraceLog,
+    dpg: &DangerousPathGraph,
+    panic: &PanicLocation,
+) -> RelationEvidence {
+    let mut panic_functions = Vec::new();
+
     if let Some(panic_fn) = infer_panic_function_hint(trace) {
+        panic_functions.push(panic_fn);
+    }
+
+    for ps in &site_map.panic_sites {
+        let line_matches = panic
+            .line
+            .map(|line| line >= ps.span.line_start && line <= ps.span.line_end)
+            .unwrap_or(false);
+
+        let file_matches = match (&panic.file, ps.span.file.as_str()) {
+            (Some(runtime_file), static_file) => same_file_path(runtime_file, static_file),
+            _ => true,
+        };
+
+        if line_matches && file_matches {
+            panic_functions.push(ps.enclosing_fn.clone());
+        }
+    }
+
+    panic_functions.sort();
+    panic_functions.dedup();
+
+    for panic_fn in panic_functions {
         let distance = dpg.shortest_distance_to_any_dangerous_site(&panic_fn);
         if let Some(d) = distance.distance {
             if d <= 2 {
