@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use rustdpr_analyzer::{analyze_crate, analyze_harness_validity, build_dpg, collect_metadata};
 use rustdpr_classifier::classify_execution_with_options;
-use rustdpr_core::{ClassificationOptions, DangerousPathGraph, HarnessValidityReport, SiteMap, TraceLog};
-use rustdpr_oracle::{parse_asan_log, parse_miri_log};
+use rustdpr_core::{ClassificationOptions, DangerousPathGraph, HarnessValidityReport, OracleVerdict, SiteMap, TraceLog};
+use rustdpr_oracle::{parse_asan_log, parse_miri_log, OracleReport};
 use rustdpr_report::render_markdown_report;
 use serde::de::DeserializeOwned;
 use std::fs;
@@ -147,15 +147,16 @@ fn main() -> Result<()> {
                 None => None,
             };
 
-            let oracle = if let Some(path) = asan_log {
-                let content = fs::read_to_string(&path)?;
-                Some(parse_asan_log(&content, Some(path.display().to_string())).verdict)
-            } else if let Some(path) = miri_log {
-                let content = fs::read_to_string(&path)?;
-                Some(parse_miri_log(&content, Some(path.display().to_string())).verdict)
-            } else {
-                None
-            };
+            // let oracle = if let Some(path) = asan_log {
+            //     let content = fs::read_to_string(&path)?;
+            //     Some(parse_asan_log(&content, Some(path.display().to_string())).verdict)
+            // } else if let Some(path) = miri_log {
+            //     let content = fs::read_to_string(&path)?;
+            //     Some(parse_miri_log(&content, Some(path.display().to_string())).verdict)
+            // } else {
+            //     None
+            // };
+            let oracle = select_oracle_verdict(asan_log, miri_log)?;
 
             let options = ClassificationOptions {
                 use_dynamic_trace: !no_trace,
@@ -197,6 +198,45 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn select_oracle_verdict(
+    asan_log: Option<PathBuf>,
+    miri_log: Option<PathBuf>,
+) -> Result<Option<OracleVerdict>> {
+    let mut reports = Vec::new();
+
+    if let Some(path) = asan_log {
+        let content = fs::read_to_string(&path)?;
+        reports.push(parse_asan_log(&content, Some(path.display().to_string())));
+    }
+
+    if let Some(path) = miri_log {
+        let content = fs::read_to_string(&path)?;
+        reports.push(parse_miri_log(&content, Some(path.display().to_string())));
+    }
+
+    Ok(select_best_oracle_report(reports).map(|report| report.verdict))
+}
+
+fn select_best_oracle_report(reports: Vec<OracleReport>) -> Option<OracleReport> {
+    reports
+        .into_iter()
+        .max_by_key(|report| oracle_verdict_priority(&report.verdict))
+}
+
+fn oracle_verdict_priority(verdict: &OracleVerdict) -> u8 {
+    match verdict {
+        OracleVerdict::AddressSanitizerDoubleFree
+        | OracleVerdict::AddressSanitizerUseAfterFree
+        | OracleVerdict::AddressSanitizerOutOfBounds
+        | OracleVerdict::AddressSanitizerInvalidFree
+        | OracleVerdict::AddressSanitizerLeak => 100,
+        OracleVerdict::MiriUndefinedBehavior => 90,
+        OracleVerdict::OracleTimeout => 20,
+        OracleVerdict::MiriUnsupported => 10,
+        OracleVerdict::Unknown => 0,
+    }
 }
 
 fn read_json<T: DeserializeOwned>(path: &PathBuf) -> Result<T> {

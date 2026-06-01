@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 from common import ROOT_DIR, SUITES, parse_oracle_verdict_from_log_text, resolve_case, run_cmd, run_output_dir
@@ -31,6 +32,10 @@ def main() -> int:
 
     log_file = out_dir / "miri.log"
 
+    existing_miriflags = os.environ.get("MIRIFLAGS", "").strip()
+    miriflags = " ".join(part for part in [existing_miriflags, "-Zmiri-disable-isolation"] if part)
+    env = {"MIRIFLAGS": miriflags}
+
     run_cmd(
         [
             "cargo",
@@ -43,6 +48,7 @@ def main() -> int:
         cwd=ROOT_DIR,
         log_path=log_file,
         check=False,
+        env=env,
     )
 
     content = log_file.read_text(encoding="utf-8", errors="replace")

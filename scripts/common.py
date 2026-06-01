@@ -337,6 +337,65 @@ VALID_HARNESS_STATUS = {
     "Unknown",
 }
 
+CONFIRMED_ORACLE_VERDICTS = {
+    "AddressSanitizerDoubleFree",
+    "AddressSanitizerUseAfterFree",
+    "AddressSanitizerOutOfBounds",
+    "AddressSanitizerInvalidFree",
+    "AddressSanitizerLeak",
+    "MiriUndefinedBehavior",
+}
+
+
+def is_confirmed_oracle_verdict(verdict: str) -> bool:
+    return verdict in CONFIRMED_ORACLE_VERDICTS
+
+
+def oracle_verdict_priority(verdict: str) -> int:
+    """Priority used when ASan and Miri logs are both available.
+
+    ASan gives a more specific memory-safety class for heap/double-free/OOB cases,
+    while Miri is the fallback for UB cases that ASan does not classify.
+    """
+    if verdict in {
+        "AddressSanitizerDoubleFree",
+        "AddressSanitizerUseAfterFree",
+        "AddressSanitizerOutOfBounds",
+        "AddressSanitizerInvalidFree",
+        "AddressSanitizerLeak",
+    }:
+        return 100
+    if verdict == "MiriUndefinedBehavior":
+        return 90
+    if verdict == "OracleTimeout":
+        return 20
+    if verdict == "MiriUnsupported":
+        return 10
+    return 0
+
+
+def parse_oracle_log_file(path: Path, oracle: str) -> str:
+    if not path.exists():
+        return "Unknown"
+    return parse_oracle_verdict_from_log_text(
+        path.read_text(encoding="utf-8", errors="replace"),
+        oracle,
+    )
+
+
+def select_oracle_verdict(rows: list[dict[str, Any]]) -> str:
+    """Select the best canonical verdict from parsed oracle rows."""
+    best = "Unknown"
+    best_priority = -1
+    for row in rows:
+        verdict = str(row.get("verdict") or "Unknown")
+        priority = oracle_verdict_priority(verdict)
+        if priority > best_priority:
+            best = verdict
+            best_priority = priority
+    return best
+
+
 
 def normalize_primary_label(value: Any) -> str:
     if value is None:
@@ -452,6 +511,47 @@ def summarize_run_classification(
     )
     return row
 
+def _classify_asan_issue_text(text: str) -> str | None:
+    """Classify an ASan ERROR/SUMMARY line into RustDPR's canonical verdict.
+
+    ASan logs contain many explanatory lines. Parsing only the canonical
+    ERROR/SUMMARY text first avoids false matches from shadow-byte legends or
+    secondary diagnostics.
+    """
+    text = text.lower()
+    if "double-free" in text or "attempting double-free" in text:
+        return "AddressSanitizerDoubleFree"
+    if any(token in text for token in [
+        "heap-buffer-overflow",
+        "stack-buffer-overflow",
+        "global-buffer-overflow",
+        "container-overflow",
+        "out-of-bounds",
+    ]):
+        return "AddressSanitizerOutOfBounds"
+    if any(token in text for token in [
+        "heap-use-after-free",
+        "stack-use-after-return",
+        "use-after-free",
+    ]):
+        return "AddressSanitizerUseAfterFree"
+    if any(token in text for token in [
+        "attempting free on address which was not malloc",
+        "bad-free",
+        "invalid-free",
+        "alloc-dealloc-mismatch",
+    ]):
+        return "AddressSanitizerInvalidFree"
+    if any(token in text for token in [
+        "leaksanitizer",
+        "detected memory leaks",
+        "direct leak of",
+        "indirect leak of",
+    ]):
+        return "AddressSanitizerLeak"
+    return None
+
+
 def parse_oracle_verdict_from_log_text(content: str, oracle: str) -> str:
     """Parse ASan/Miri output into RustDPR's canonical OracleVerdict string."""
     oracle = oracle.lower().strip()
@@ -461,41 +561,26 @@ def parse_oracle_verdict_from_log_text(content: str, oracle: str) -> str:
         return any(needle in lower for needle in needles)
 
     if oracle == "asan":
-        if contains_any(["double-free", "attempting double-free"]):
-            return "AddressSanitizerDoubleFree"
-        if contains_any(["heap-use-after-free", "stack-use-after-return", "use-after-free"]):
-            return "AddressSanitizerUseAfterFree"
-        if contains_any([
-            "heap-buffer-overflow",
-            "stack-buffer-overflow",
-            "global-buffer-overflow",
-            "container-overflow",
-            "out-of-bounds",
-        ]):
-            return "AddressSanitizerOutOfBounds"
-        if contains_any([
-            "attempting free on address which was not malloc",
-            "bad-free",
-            "invalid-free",
-            "alloc-dealloc-mismatch",
-        ]):
-            return "AddressSanitizerInvalidFree"
-        if contains_any(["leaksanitizer", "detected memory leaks", "direct leak of", "indirect leak of"]):
-            return "AddressSanitizerLeak"
+        # Prefer the canonical ASan header/summary line over broad substring
+        # matching, because non-primary diagnostic text may mention other bug
+        # classes.
+        for line in lower.splitlines():
+            if "error: addresssanitizer:" in line or "summary: addresssanitizer:" in line:
+                verdict = _classify_asan_issue_text(line)
+                if verdict is not None:
+                    return verdict
+
+        fallback = _classify_asan_issue_text(lower)
+        if fallback is not None:
+            return fallback
         if contains_any(["timeout", "alarm", "max_total_time"]):
             return "OracleTimeout"
         return "Unknown"
 
     if oracle == "miri":
-        if contains_any([
-            "unsupported operation",
-            "miri does not support",
-            "can't call foreign function",
-            "can't call extern function",
-            "is not supported by miri",
-            "isolation",
-        ]):
-            return "MiriUnsupported"
+        # UB evidence should win over unsupported-environment notes. This is
+        # important when Miri is run with -Zmiri-disable-isolation, where the
+        # log can contain an isolation warning before the concrete UB report.
         if contains_any([
             "error: undefined behavior",
             "undefined behavior:",
@@ -512,6 +597,18 @@ def parse_oracle_verdict_from_log_text(content: str, oracle: str) -> str:
             "violated precondition",
         ]):
             return "MiriUndefinedBehavior"
+
+        if contains_any([
+            "unsupported operation",
+            "miri does not support",
+            "can't call foreign function",
+            "can't call extern function",
+            "is not supported by miri",
+            "operation is not available under isolation",
+            "operation not available under isolation",
+            "isolation error",
+        ]):
+            return "MiriUnsupported"
         return "Unknown"
 
     raise ValueError(f"unknown oracle: {oracle!r}")

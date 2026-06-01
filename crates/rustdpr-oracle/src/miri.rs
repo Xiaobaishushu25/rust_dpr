@@ -6,29 +6,6 @@ pub fn parse_miri_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
     let mut evidence = Vec::new();
     let mut target_api_misuse = false;
 
-    let unsupported = [
-        "unsupported operation",
-        "miri does not support",
-        "can't call foreign function",
-        "can't call extern function",
-        "is not supported by miri",
-        "isolation",
-    ];
-    if contains_any(&lower, &unsupported) {
-        evidence.push("Miri reported unsupported feature/operation".to_string());
-        return OracleReport {
-            oracle_name: "miri".into(),
-            status: "unsupported".into(),
-            verdict: OracleVerdict::MiriUnsupported,
-            bug_kind: None,
-            raw_log_path,
-            unsupported_reason: Some("unsupported operation or FFI/OS dependency in Miri run".into()),
-            evidence_strength: OracleEvidenceStrength::Unsupported,
-            target_api_misuse: false,
-            evidence,
-        };
-    }
-
     let ub_markers = [
         "error: undefined behavior",
         "undefined behavior:",
@@ -55,32 +32,82 @@ pub fn parse_miri_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
         "violated precondition",
     ];
 
-    let verdict = if contains_any(&lower, &ub_markers) {
+    // Confirmed UB should win over unsupported-environment notes. This matters
+    // when Miri is run with -Zmiri-disable-isolation: the log may mention
+    // isolation while still containing the concrete UB report we need.
+    if contains_any(&lower, &ub_markers) {
         evidence.push("Miri reported concrete UB/precondition violation".to_string());
         if contains_any(&lower, &api_misuse_markers) {
             target_api_misuse = true;
             evidence.push("UB evidence appears tied to target API misuse/precondition violation".to_string());
         }
-        OracleVerdict::MiriUndefinedBehavior
-    } else if lower.contains("error:") && lower.contains("miri") {
+
+        let evidence_strength = if target_api_misuse {
+            OracleEvidenceStrength::TargetApiMisuse
+        } else {
+            OracleEvidenceStrength::Confirmed
+        };
+
+        return OracleReport {
+            oracle_name: "miri".into(),
+            status: "confirmed".into(),
+            verdict: OracleVerdict::MiriUndefinedBehavior,
+            bug_kind: if target_api_misuse {
+                Some("target-api-misuse-or-unsafe-precondition".into())
+            } else {
+                None
+            },
+            raw_log_path,
+            unsupported_reason: None,
+            evidence_strength,
+            target_api_misuse,
+            evidence,
+        };
+    }
+
+    let unsupported = [
+        "unsupported operation",
+        "miri does not support",
+        "can't call foreign function",
+        "can't call extern function",
+        "is not supported by miri",
+        "operation is not available under isolation",
+        "operation not available under isolation",
+        "isolation error",
+    ];
+    if contains_any(&lower, &unsupported) {
+        evidence.push("Miri reported unsupported feature/operation".to_string());
+        return OracleReport {
+            oracle_name: "miri".into(),
+            status: "unsupported".into(),
+            verdict: OracleVerdict::MiriUnsupported,
+            bug_kind: None,
+            raw_log_path,
+            unsupported_reason: Some("unsupported operation or FFI/OS dependency in Miri run".into()),
+            evidence_strength: OracleEvidenceStrength::Unsupported,
+            target_api_misuse: false,
+            evidence,
+        };
+    }
+
+    let verdict = if lower.contains("error:") && lower.contains("miri") {
         evidence.push("Miri emitted an error, but no precise UB marker matched".to_string());
         OracleVerdict::Unknown
     } else {
         OracleVerdict::Unknown
     };
 
-    let evidence_strength = match verdict {
-        OracleVerdict::MiriUndefinedBehavior if target_api_misuse => OracleEvidenceStrength::TargetApiMisuse,
-        OracleVerdict::MiriUndefinedBehavior => OracleEvidenceStrength::Confirmed,
-        _ if !evidence.is_empty() => OracleEvidenceStrength::WeakHeuristic,
-        _ => OracleEvidenceStrength::Unknown,
+    let evidence_strength = if !evidence.is_empty() {
+        OracleEvidenceStrength::WeakHeuristic
+    } else {
+        OracleEvidenceStrength::Unknown
     };
 
     OracleReport {
         oracle_name: "miri".into(),
         status: if verdict == OracleVerdict::Unknown { "unknown".into() } else { "confirmed".into() },
         verdict,
-        bug_kind: if target_api_misuse { Some("target-api-misuse-or-unsafe-precondition".into()) } else { None },
+        bug_kind: None,
         raw_log_path,
         unsupported_reason: None,
         evidence_strength,

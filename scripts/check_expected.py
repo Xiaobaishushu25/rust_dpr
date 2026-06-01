@@ -11,6 +11,7 @@ from common import (
     normalize_expected_schema,
     normalize_oracle_verdicts,
     normalize_primary_label,
+    normalize_harness_status,
     normalize_relation_label,
     read_json,
     run_output_dir,
@@ -72,7 +73,8 @@ def compare_case(args, suite: str, case_dir: Path) -> dict:
         actual_primary = normalize_primary_label(classification.get("primary_label"))
         actual_relation = normalize_relation_label(classification.get("relation"))
         actual_oracle = normalize_oracle_verdicts(classification.get("oracle_verdict"))
-        actual_harness = classification.get("harness_status")
+#         actual_harness = classification.get("harness_status")
+        actual_harness = normalize_harness_status(classification.get("harness_status"))
         actual_reached_count = len(classification.get("reached_dangerous_sites", []))
 
         checks = [
