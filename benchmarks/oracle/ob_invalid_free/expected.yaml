@@ -11,7 +11,7 @@ source:
 
 ground_truth:
   primary_label: OracleConfirmedBug
-  relation: AfterUnsafe
+  relation: NoneObserved
   oracle_verdict: AddressSanitizerInvalidFree
   harness_status: LikelyValid
   security_relevant: true

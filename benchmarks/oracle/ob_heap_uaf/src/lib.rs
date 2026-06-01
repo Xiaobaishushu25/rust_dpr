@@ -5,7 +5,7 @@ pub fn trigger(flag: bool) -> u8 {
     let ptr = Box::into_raw(b);
 
     unsafe {
-        hit("S0001");
+        hit("S00001");
         drop(Box::from_raw(ptr));
 
         if flag {
