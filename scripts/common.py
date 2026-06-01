@@ -451,3 +451,67 @@ def summarize_run_classification(
         }
     )
     return row
+
+def parse_oracle_verdict_from_log_text(content: str, oracle: str) -> str:
+    """Parse ASan/Miri output into RustDPR's canonical OracleVerdict string."""
+    oracle = oracle.lower().strip()
+    lower = content.lower()
+
+    def contains_any(needles: list[str]) -> bool:
+        return any(needle in lower for needle in needles)
+
+    if oracle == "asan":
+        if contains_any(["double-free", "attempting double-free"]):
+            return "AddressSanitizerDoubleFree"
+        if contains_any(["heap-use-after-free", "stack-use-after-return", "use-after-free"]):
+            return "AddressSanitizerUseAfterFree"
+        if contains_any([
+            "heap-buffer-overflow",
+            "stack-buffer-overflow",
+            "global-buffer-overflow",
+            "container-overflow",
+            "out-of-bounds",
+        ]):
+            return "AddressSanitizerOutOfBounds"
+        if contains_any([
+            "attempting free on address which was not malloc",
+            "bad-free",
+            "invalid-free",
+            "alloc-dealloc-mismatch",
+        ]):
+            return "AddressSanitizerInvalidFree"
+        if contains_any(["leaksanitizer", "detected memory leaks", "direct leak of", "indirect leak of"]):
+            return "AddressSanitizerLeak"
+        if contains_any(["timeout", "alarm", "max_total_time"]):
+            return "OracleTimeout"
+        return "Unknown"
+
+    if oracle == "miri":
+        if contains_any([
+            "unsupported operation",
+            "miri does not support",
+            "can't call foreign function",
+            "can't call extern function",
+            "is not supported by miri",
+            "isolation",
+        ]):
+            return "MiriUnsupported"
+        if contains_any([
+            "error: undefined behavior",
+            "undefined behavior:",
+            "miri: undefined behavior",
+            "out-of-bounds pointer arithmetic",
+            "dangling pointer",
+            "pointer to unallocated allocation",
+            "attempting a read access using",
+            "attempting a write access using",
+            "deallocating while item is protected",
+            "data race",
+            "uninitialized",
+            "invalid enum discriminant",
+            "violated precondition",
+        ]):
+            return "MiriUndefinedBehavior"
+        return "Unknown"
+
+    raise ValueError(f"unknown oracle: {oracle!r}")
