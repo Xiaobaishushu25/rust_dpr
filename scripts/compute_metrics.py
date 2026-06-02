@@ -68,6 +68,7 @@ def iter_runs(suite: str) -> list[dict[str, Any]]:
                 "run_dir": str(run_dir),
                 "tool": meta["tool"],
                 "variant": meta["variant"],
+                "mode": meta.get("mode", "deterministic"),
                 "seed": meta["seed"],
                 "run_index": meta["run_index"],
                 "classification": classification,
@@ -190,8 +191,10 @@ def main() -> int:
 
     rows = iter_runs(args.suite)
     by_tool_variant: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    by_tool_variant_mode: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         by_tool_variant[(row["tool"], row["variant"])].append(row)
+        by_tool_variant_mode[(row["tool"], row["variant"], row.get("mode", "deterministic"))].append(row)
 
     result = {
         "suite": args.suite,
@@ -201,6 +204,10 @@ def main() -> int:
         "by_tool_variant": {
             f"{tool}/{variant}": compute_group_metrics(group)
             for (tool, variant), group in sorted(by_tool_variant.items())
+        },
+        "by_tool_variant_mode": {
+            f"{tool}/{variant}/{mode}": compute_group_metrics(group)
+            for (tool, variant, mode), group in sorted(by_tool_variant_mode.items())
         },
     }
 

@@ -23,8 +23,8 @@ dangerous_categories:
 panic_kinds:
   - AssertMacro
 harness:
-  path: tests
-  validity_rationale: controlled micro case with deterministic unit test harness
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case with deterministic unit test and local fuzz harness
 selection:
   reason: MaybeUninit materialization/read happens before panic and should remain review-worthy
   negative_case: false

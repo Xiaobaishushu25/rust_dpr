@@ -23,8 +23,8 @@ dangerous_categories:
 panic_kinds:
   - AssertMacro
 harness:
-  path: tests
-  validity_rationale: controlled micro case with deterministic unit test harness
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: controlled micro case with deterministic unit test and local fuzz harness
 selection:
   reason: raw pointer write is executed before the panic
   negative_case: false

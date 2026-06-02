@@ -39,6 +39,7 @@ def resolve_classification_path(args, suite: str, case_name: str) -> Path:
         variant=args.variant,
         seed=args.seed,
         run_index=args.run_index,
+        mode=args.mode,
     ) / "classification.json"
 
 
@@ -107,6 +108,7 @@ def main() -> int:
     parser.add_argument("--summary-json", default=None)
     parser.add_argument("--tool", default="rustdpr")
     parser.add_argument("--variant", default="full")
+    parser.add_argument("--mode", choices=["deterministic", "fuzz"], default="deterministic")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--run-index", type=int, default=1)
     args = parser.parse_args()
@@ -146,6 +148,7 @@ def main() -> int:
         "suite": args.suite,
         "tool": args.tool,
         "variant": args.variant,
+        "mode": args.mode,
         "seed": args.seed,
         "run_index": args.run_index,
         "total": len(results),
@@ -160,7 +163,8 @@ def main() -> int:
 
     print("[summary]")
     print(f"suite    : {args.suite}")
-    print(f"run      : {args.tool}/{args.variant}/seed-{args.seed}/run-{args.run_index:03d}")
+    mode_part = "" if args.mode == "deterministic" else f"/{args.mode}"
+    print(f"run      : {args.tool}/{args.variant}{mode_part}/seed-{args.seed}/run-{args.run_index:03d}")
     print(f"total    : {len(results)}")
     print(f"pass     : {pass_count}")
     print(f"fail     : {fail_count}")

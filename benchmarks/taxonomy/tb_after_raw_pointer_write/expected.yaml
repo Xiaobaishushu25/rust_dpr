@@ -23,7 +23,7 @@ dangerous_categories:
 panic_kinds:
   - AssertMacro
 harness:
-  path: tests
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
   validity_rationale: deterministic path reaches raw pointer write before panic
 selection:
   reason: taxonomy case for panic after an executed raw pointer write

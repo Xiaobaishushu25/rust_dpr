@@ -23,15 +23,21 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--run-index", type=int, default=1)
     parser.add_argument("--budget-seconds", type=int, default=0)
+    parser.add_argument("--mode", choices=["deterministic", "fuzz"], default=None)
+    parser.add_argument("--fuzz-target", default="fuzz_target_1")
+    parser.add_argument("--fuzz-runs", type=int, default=64)
     args = parser.parse_args()
 
     spec = BASELINES[args.baseline]
+    mode = args.mode or ("fuzz" if args.baseline == "crash-only" else "deterministic")
     cmd = [
         sys.executable,
         "scripts/run_case.py",
         args.case,
         "--suite",
         args.suite,
+        "--mode",
+        mode,
         "--tool",
         spec["tool"],
         "--variant",
@@ -42,6 +48,10 @@ def main() -> int:
         str(args.run_index),
         "--budget-seconds",
         str(args.budget_seconds),
+        "--fuzz-target",
+        args.fuzz_target,
+        "--fuzz-runs",
+        str(args.fuzz_runs),
     ]
 
     if args.baseline == "panic-only":

@@ -22,7 +22,7 @@ dangerous_categories:
   - RawPointer
 panic_kinds: []
 harness:
-  path: tests
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
   validity_rationale: deterministic raw pointer use after stack scope ends
 selection:
   reason: Miri should confirm use of a raw pointer whose referent is out of scope

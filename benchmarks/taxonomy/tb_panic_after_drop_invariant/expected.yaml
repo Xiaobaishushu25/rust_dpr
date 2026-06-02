@@ -23,7 +23,7 @@ dangerous_categories:
 panic_kinds:
   - AssertMacro
 harness:
-  path: tests
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
   validity_rationale: deterministic path reaches manual drop-invariant operation before panic
 selection:
   reason: taxonomy case for panic after drop-sensitive manual ownership operation

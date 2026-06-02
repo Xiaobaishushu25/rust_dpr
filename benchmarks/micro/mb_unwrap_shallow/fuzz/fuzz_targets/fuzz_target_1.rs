@@ -1,7 +1,14 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
+use mb_unwrap_shallow::parse;
+use rustdpr_trace::{init_trace, install_panic_hook};
 
 fuzz_target!(|data: &[u8]| {
-    // fuzzed code goes here
+    let _ = init_trace("artifacts/fuzz_trace.jsonl");
+    install_panic_hook();
+
+    let _ = std::panic::catch_unwind(|| {
+        let _ = parse(data);
+    });
 });

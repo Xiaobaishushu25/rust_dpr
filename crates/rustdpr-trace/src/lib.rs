@@ -4,6 +4,7 @@ use anyhow::Result;
 use once_cell::sync::OnceCell;
 use rustdpr_core::TraceEvent;
 use serde_json::to_writer;
+use std::env;
 use std::fs::{create_dir_all, File};
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -43,17 +44,33 @@ pub fn set_input_id(input_id: &str) {
 }
 
 pub fn init_trace(path: &str) -> Result<()> {
-    let path = Path::new(path);
+    // In fuzzing mode the target may call init_trace once per input.  Re-opening
+    // the same file would truncate the trace while the original writer is still
+    // alive, so initialization must be idempotent.
+    if TRACE_WRITER.get().is_some() {
+        return Ok(());
+    }
+
+    if let Ok(run_id) = env::var("RUSTDPR_RUN_ID") {
+        if !run_id.trim().is_empty() {
+            let _ = TRACE_RUN_ID.set(run_id);
+        }
+    }
+    if let Ok(input_id) = env::var("RUSTDPR_INPUT_ID") {
+        if !input_id.trim().is_empty() {
+            let _ = TRACE_INPUT_ID.set(input_id);
+        }
+    }
+
+    let trace_path = env::var("RUSTDPR_TRACE_PATH").unwrap_or_else(|_| path.to_string());
+    let path = Path::new(&trace_path);
     if let Some(parent) = path.parent() {
         create_dir_all(parent)?;
     }
 
     let file = File::create(path)?;
     let writer = BufWriter::new(file);
-
-    if TRACE_WRITER.get().is_none() {
-        let _ = TRACE_WRITER.set(Mutex::new(writer));
-    }
+    let _ = TRACE_WRITER.set(Mutex::new(writer));
 
     Ok(())
 }

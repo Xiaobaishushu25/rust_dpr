@@ -35,6 +35,7 @@ SUMMARY_FIELDNAMES = [
     "case",
     "tool",
     "variant",
+    "mode",
     "seed",
     "run_index",
     "budget_seconds",
@@ -117,6 +118,9 @@ def run_case_with_oracle_logs(
     seed: int | None,
     run_index: int,
     budget_seconds: int,
+    mode: str,
+    fuzz_target: str,
+    fuzz_runs: int,
     out_dir: Path,
     oracle_dir: Path,
     skip_harness: bool,
@@ -127,6 +131,8 @@ def run_case_with_oracle_logs(
         case_name,
         "--suite",
         suite,
+        "--mode",
+        mode,
         "--tool",
         tool,
         "--variant",
@@ -135,6 +141,10 @@ def run_case_with_oracle_logs(
         str(run_index),
         "--budget-seconds",
         str(budget_seconds),
+        "--fuzz-target",
+        fuzz_target,
+        "--fuzz-runs",
+        str(fuzz_runs),
         "--out-dir",
         str(out_dir),
         "--no-clean",
@@ -166,6 +176,8 @@ def run_expected_check(args) -> int:
         args.tool,
         "--variant",
         args.variant,
+        "--mode",
+        args.mode,
         "--run-index",
         str(args.run_index),
         "--summary-json",
@@ -200,6 +212,9 @@ def main() -> int:
     parser.add_argument("--oracle", choices=["asan", "miri", "both"], default="both")
     parser.add_argument("--tool", default="rustdpr")
     parser.add_argument("--variant", default="full")
+    parser.add_argument("--mode", choices=["deterministic", "fuzz"], default="deterministic")
+    parser.add_argument("--fuzz-target", default="fuzz_target_1")
+    parser.add_argument("--fuzz-runs", type=int, default=64)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--run-index", type=int, default=1)
     parser.add_argument("--budget-seconds", type=int, default=0)
@@ -233,6 +248,7 @@ def main() -> int:
             variant=args.variant,
             seed=args.seed,
             run_index=args.run_index,
+            mode=args.mode,
         )
         clean_case_output_dir(out_dir)
         oracle_dir = out_dir / "oracle"
@@ -270,6 +286,9 @@ def main() -> int:
             seed=args.seed,
             run_index=args.run_index,
             budget_seconds=args.budget_seconds,
+            mode=args.mode,
+            fuzz_target=args.fuzz_target,
+            fuzz_runs=args.fuzz_runs,
             out_dir=out_dir,
             oracle_dir=oracle_dir,
             skip_harness=args.skip_harness,
@@ -287,6 +306,7 @@ def main() -> int:
                 "case": case_name,
                 "tool": args.tool,
                 "variant": args.variant,
+                "mode": args.mode,
                 "seed": args.seed,
                 "run_index": args.run_index,
                 "budget_seconds": args.budget_seconds,
@@ -324,6 +344,9 @@ def main() -> int:
         "suite": args.suite,
         "tool": args.tool,
         "variant": args.variant,
+        "mode": args.mode,
+        "fuzz_target": args.fuzz_target if args.mode == "fuzz" else None,
+        "fuzz_runs": args.fuzz_runs if args.mode == "fuzz" else None,
         "seed": args.seed,
         "run_index": args.run_index,
         "oracle": args.oracle,
@@ -342,6 +365,7 @@ def main() -> int:
     print("[summary]")
     print(f"suite       : {args.suite}")
     print(f"tool/variant: {args.tool}/{args.variant}")
+    print(f"mode        : {args.mode}")
     print(f"seed/run    : {args.seed}/run-{args.run_index:03d}")
     print(f"total runs  : {len(rows)}")
     print(f"failed runs : {len(failures)}")

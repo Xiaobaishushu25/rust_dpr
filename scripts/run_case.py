@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
@@ -26,10 +27,12 @@ def main() -> int:
     parser.add_argument("--suite", choices=SUITES, default=None)
     parser.add_argument(
         "--mode",
-        choices=["deterministic"],
+        choices=["deterministic", "fuzz"],
         default="deterministic",
-        help="execution mode; fuzz mode can be added later",
+        help="execution mode",
     )
+    parser.add_argument("--fuzz-target", default="fuzz_target_1")
+    parser.add_argument("--fuzz-runs", type=int, default=64)
     parser.add_argument("--tool", default="rustdpr")
     parser.add_argument("--variant", default="full")
     parser.add_argument("--seed", type=int, default=None)
@@ -64,6 +67,7 @@ def main() -> int:
             variant=args.variant,
             seed=args.seed,
             run_index=args.run_index,
+            mode=args.mode,
         )
 
     if args.no_clean:
@@ -71,7 +75,8 @@ def main() -> int:
     else:
         clean_case_output_dir(out_dir)
 
-    run_id = f"{suite}-{case_name}-{args.tool}-{args.variant}-{int(time.time())}"
+    seed_part = "none" if args.seed is None else str(args.seed)
+    run_id = f"{suite}/{case_name}/{args.tool}/{args.variant}/seed-{seed_part}/run-{args.run_index:03d}/{args.mode}-{int(time.time())}"
 
     site_map = out_dir / "site_map.json"
     function_index = out_dir / "function_index.json"
@@ -144,21 +149,63 @@ def main() -> int:
         )
         harness_used = True
 
-    return_code = run_cmd(
-        [
-            "cargo",
-            "test",
-            "--manifest-path",
-            str(case_dir / "Cargo.toml"),
-            "--",
-            "--nocapture",
-        ],
-        cwd=ROOT_DIR,
-        log_path=test_log,
-        check=False,
-    )
-
-    trace_jsonl = find_trace_file(case_dir)
+    if args.mode == "deterministic":
+        trace_jsonl = out_dir / "trace.jsonl"
+        if trace_jsonl.exists():
+            trace_jsonl.unlink()
+        return_code = run_cmd(
+            [
+                "cargo",
+                "test",
+                "--manifest-path",
+                str(case_dir / "Cargo.toml"),
+                "--",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            cwd=ROOT_DIR,
+            env={
+                "RUSTDPR_TRACE_PATH": str(trace_jsonl),
+                "RUSTDPR_RUN_ID": run_id,
+                "RUSTDPR_INPUT_ID": "deterministic",
+            },
+            log_path=test_log,
+            check=False,
+        )
+        if not trace_jsonl.exists():
+            trace_jsonl = find_trace_file(case_dir)
+    else:
+        fuzz_out_dir = out_dir / "fuzz"
+        fuzz_seed = 1 if args.seed is None else args.seed
+        return_code = run_cmd(
+            [
+                sys.executable,
+                "scripts/run_fuzz.py",
+                case_name,
+                "--suite",
+                suite,
+                "--target",
+                args.fuzz_target,
+                "--seed",
+                str(fuzz_seed),
+                "--run-index",
+                str(args.run_index),
+                "--budget-seconds",
+                str(args.budget_seconds),
+                "--runs",
+                str(args.fuzz_runs),
+                "--out-dir",
+                str(fuzz_out_dir),
+                "--run-id",
+                run_id,
+            ],
+            cwd=ROOT_DIR,
+            check=False,
+        )
+        fuzz_meta = read_json(fuzz_out_dir / "fuzz_meta.json")
+        trace_jsonl = Path(fuzz_meta["trace_jsonl"])
+        if not trace_jsonl.exists():
+            raise RuntimeError(f"cargo-fuzz did not produce a RustDPR trace: {trace_jsonl}")
     jsonl_trace_to_tracelog_json(
         trace_jsonl,
         trace_log_json,
@@ -257,6 +304,8 @@ def main() -> int:
         "seed": args.seed,
         "run_index": args.run_index,
         "budget_seconds": args.budget_seconds,
+        "fuzz_target": args.fuzz_target if args.mode == "fuzz" else None,
+        "fuzz_runs": args.fuzz_runs if args.mode == "fuzz" else None,
         "case_dir": str(case_dir),
         "out_dir": str(out_dir),
         "rustc_version": capture_version(["rustc", "--version", "--verbose"]),

@@ -23,7 +23,7 @@ dangerous_categories:
 panic_kinds:
   - PanicMacro
 harness:
-  path: tests
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
   validity_rationale: deterministic panic in caller is statically adjacent to unsafe callee but does not hit it
 selection:
   reason: taxonomy case for graph-adjacent unsafe evidence without dynamic hit

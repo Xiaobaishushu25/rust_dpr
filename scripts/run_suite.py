@@ -26,6 +26,9 @@ def run_case_subprocess(
     seed: int | None,
     run_index: int,
     budget_seconds: int,
+    mode: str,
+    fuzz_target: str,
+    fuzz_runs: int,
     asan_log: str | None = None,
     miri_log: str | None = None,
     skip_harness: bool = False,
@@ -36,6 +39,8 @@ def run_case_subprocess(
         case_name,
         "--suite",
         suite,
+        "--mode",
+        mode,
         "--tool",
         tool,
         "--variant",
@@ -44,6 +49,10 @@ def run_case_subprocess(
         str(run_index),
         "--budget-seconds",
         str(budget_seconds),
+        "--fuzz-target",
+        fuzz_target,
+        "--fuzz-runs",
+        str(fuzz_runs),
     ]
 
     if seed is not None:
@@ -77,6 +86,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run a whole RustDPR benchmark suite")
     parser.add_argument("--suite", choices=SUITES, required=True)
     parser.add_argument("--repeat", type=int, default=1, help="repeat each case N times")
+    parser.add_argument("--mode", choices=["deterministic", "fuzz"], default="deterministic")
+    parser.add_argument("--fuzz-target", default="fuzz_target_1")
+    parser.add_argument("--fuzz-runs", type=int, default=64)
     parser.add_argument("--tool", default="rustdpr")
     parser.add_argument("--variant", default="full")
     parser.add_argument("--seeds", default="1,2,3,4,5")
@@ -108,6 +120,9 @@ def main() -> int:
                     seed=seed,
                     run_index=run_idx + 1,
                     budget_seconds=args.budget_seconds,
+                    mode=args.mode,
+                    fuzz_target=args.fuzz_target,
+                    fuzz_runs=args.fuzz_runs,
                     skip_harness=args.skip_harness,
                 )
 
@@ -118,6 +133,7 @@ def main() -> int:
                     variant=args.variant,
                     seed=seed,
                     run_index=run_idx + 1,
+                    mode=args.mode,
                 )
                 classification_path = out_dir / "classification.json"
                 meta_path = out_dir / "run_meta.json"
@@ -133,6 +149,7 @@ def main() -> int:
                         "case": case_name,
                         "tool": args.tool,
                         "variant": args.variant,
+                        "mode": args.mode,
                         "seed": seed,
                         "run_index": run_idx + 1,
                         "budget_seconds": args.budget_seconds,
@@ -167,6 +184,9 @@ def main() -> int:
         "suite": args.suite,
         "tool": args.tool,
         "variant": args.variant,
+        "mode": args.mode,
+        "fuzz_target": args.fuzz_target if args.mode == "fuzz" else None,
+        "fuzz_runs": args.fuzz_runs if args.mode == "fuzz" else None,
         "repeat": args.repeat,
         "seeds": seeds,
         "total_runs": len(all_rows),
@@ -187,6 +207,7 @@ def main() -> int:
             "case",
             "tool",
             "variant",
+            "mode",
             "seed",
             "run_index",
             "budget_seconds",
@@ -207,6 +228,7 @@ def main() -> int:
     print("[summary]")
     print(f"suite       : {args.suite}")
     print(f"tool/variant: {args.tool}/{args.variant}")
+    print(f"mode        : {args.mode}")
     print(f"total runs  : {len(all_rows)}")
     print(f"failed runs : {len(failures)}")
 

@@ -185,9 +185,13 @@ def run_output_dir(
     variant: str,
     seed: int | None,
     run_index: int,
+    mode: str | None = None,
 ) -> Path:
     seed_part = "seed-none" if seed is None else f"seed-{seed}"
-    return RUNS_DIR / suite / case_name / tool / variant / seed_part / f"run-{run_index:03d}"
+    base = RUNS_DIR / suite / case_name / tool / variant
+    if mode and mode != "deterministic":
+        base = base / mode
+    return base / seed_part / f"run-{run_index:03d}"
 
 
 def suite_case_expected_path(suite: str, case_name: str) -> Path:
@@ -493,7 +497,7 @@ def summarize_run_classification(
     classification: dict[str, Any],
     meta: dict[str, Any],
 ) -> dict[str, Any]:
-    required_meta = ["tool", "variant", "seed", "run_index", "budget_seconds", "return_code"]
+    required_meta = ["tool", "variant", "mode", "seed", "run_index", "budget_seconds", "return_code"]
     missing_meta = [k for k in required_meta if k not in meta]
     if missing_meta:
         raise RuntimeError(f"run_meta.json missing required fields: {missing_meta}")
@@ -503,6 +507,7 @@ def summarize_run_classification(
         {
             "tool": meta["tool"],
             "variant": meta["variant"],
+            "mode": meta["mode"],
             "seed": meta["seed"],
             "run_index": meta["run_index"],
             "budget_seconds": meta["budget_seconds"],

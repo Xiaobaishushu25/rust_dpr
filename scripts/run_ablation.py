@@ -21,6 +21,10 @@ def main() -> int:
     parser.add_argument("--suite", choices=SUITES, required=True)
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--seeds", default="1")
+    parser.add_argument("--mode", choices=["deterministic", "fuzz"], default="deterministic")
+    parser.add_argument("--budget-seconds", type=int, default=0)
+    parser.add_argument("--fuzz-target", default="fuzz_target_1")
+    parser.add_argument("--fuzz-runs", type=int, default=64)
     parser.add_argument("--variants", default=",".join(ABLATIONS.keys()))
     args = parser.parse_args()
 
@@ -45,6 +49,14 @@ def main() -> int:
                         "rustdpr",
                         "--variant",
                         variant,
+                        "--mode",
+                        args.mode,
+                        "--budget-seconds",
+                        str(args.budget_seconds),
+                        "--fuzz-target",
+                        args.fuzz_target,
+                        "--fuzz-runs",
+                        str(args.fuzz_runs),
                         "--seed",
                         str(seed),
                         "--run-index",

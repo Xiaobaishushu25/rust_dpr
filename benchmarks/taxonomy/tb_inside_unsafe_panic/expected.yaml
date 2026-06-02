@@ -23,7 +23,7 @@ dangerous_categories:
 panic_kinds:
   - PanicMacro
 harness:
-  path: tests
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
   validity_rationale: deterministic panic occurs syntactically inside unsafe block
 selection:
   reason: taxonomy case for panic located inside an unsafe region

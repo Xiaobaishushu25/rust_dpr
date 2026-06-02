@@ -22,7 +22,7 @@ dangerous_categories:
   - AllocationOwnership
 panic_kinds: []
 harness:
-  path: fuzz
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
   validity_rationale: deterministic oracle case with local harness
 selection:
   reason: oracle should confirm double free specifically
