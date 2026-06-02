@@ -32,6 +32,6 @@ mod tests {
     fn trigger_oob_raw() {
         init_trace("trace.jsonl").unwrap();
         install_panic_hook();
-        let _ = trigger(100);
+        let _ = trigger(4);
     }
 }
