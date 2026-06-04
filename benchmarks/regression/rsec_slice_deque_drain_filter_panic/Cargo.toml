@@ -1,0 +1,8 @@
+[package]
+name = "rsec_slice_deque_drain_filter_panic"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

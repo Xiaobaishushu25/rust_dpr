@@ -1,0 +1,35 @@
+case_id: ob_misaligned_read_miri
+suite: oracle
+category: oracle
+
+source:
+  crate_name: ob_misaligned_read_miri
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: NoneObserved
+  oracle_verdict: MiriUndefinedBehavior
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: deterministic local harness maps bytes to public API without directly fabricating invalid external pointers
+
+selection:
+  reason: controlled oracle case for MiriUndefinedBehavior
+  negative_case: false
+  manually_labeled: true
+
+notes:
+  - Use run_oracle_suite.py so ASan/Miri evidence is attached before expected-label checking.

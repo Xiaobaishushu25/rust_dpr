@@ -1,3 +1,6 @@
+# Deprecated lightweight helper.
+# Prefer scripts/run_oracle_suite.py for paper experiments because it attaches
+# oracle logs to classification and can run expected-label checks.
 from __future__ import annotations
 
 import argparse

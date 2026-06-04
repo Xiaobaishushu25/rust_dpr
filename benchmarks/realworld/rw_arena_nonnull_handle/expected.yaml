@@ -1,0 +1,36 @@
+case_id: rw_arena_nonnull_handle
+suite: realworld
+category: realworld-local
+
+source:
+  crate_name: arena-handle-local
+  version: local-extract
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - PanicMacro
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: deterministic local harness maps bytes to public API without directly fabricating invalid external pointers
+
+selection:
+  reason: arena handle creation via NonNull pattern
+  negative_case: false
+  manually_labeled: true
+
+notes:
+  - Local real-world-style extract for scaling the pipeline; final CCFA submission should add pinned external crate snapshots.

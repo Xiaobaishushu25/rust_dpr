@@ -20,6 +20,17 @@ pub fn parse_miri_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
         "uninitialized",
         "invalid enum discriminant",
         "violated precondition",
+
+        // Extra Miri UB diagnostics seen in validity and alignment cases.
+        "constructing invalid value",
+        "invalid value",
+        "expected a boolean",
+        "encountered 0x",
+        "not a valid",
+        "validity invariant",
+        "misaligned pointer dereference",
+        "memory access failed",
+        "not dereferenceable",
     ];
 
     let api_misuse_markers = [

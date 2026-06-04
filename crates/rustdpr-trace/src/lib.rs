@@ -16,6 +16,12 @@ static TRACE_RUN_ID: OnceCell<String> = OnceCell::new();
 static TRACE_INPUT_ID: OnceCell<String> = OnceCell::new();
 static PANIC_HOOK_INSTALLED: OnceCell<()> = OnceCell::new();
 
+fn trace_disabled() -> bool {
+    std::env::var("RUSTDPR_DISABLE_TRACE")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
 fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -36,14 +42,27 @@ fn current_input_id() -> Option<String> {
 }
 
 pub fn set_run_id(run_id: &str) {
+    if trace_disabled() {
+        return;
+    }
     let _ = TRACE_RUN_ID.set(run_id.to_string());
 }
 
 pub fn set_input_id(input_id: &str) {
+    if trace_disabled() {
+        return;
+    }
     let _ = TRACE_INPUT_ID.set(input_id.to_string());
 }
 
 pub fn init_trace(path: &str) -> Result<()> {
+    // Miri does not support many OS/file-system calls on all platforms
+    // (for example CreateDirectoryW on Windows). Oracle runs only need the
+    // target UB check, not trace I/O, so run_miri.py sets this variable.
+    if trace_disabled() {
+        return Ok(());
+    }
+
     // In fuzzing mode the target may call init_trace once per input.  Re-opening
     // the same file would truncate the trace while the original writer is still
     // alive, so initialization must be idempotent.
@@ -76,6 +95,10 @@ pub fn init_trace(path: &str) -> Result<()> {
 }
 
 pub fn flush_trace() {
+    if trace_disabled() {
+        return;
+    }
+
     if let Some(writer) = TRACE_WRITER.get() {
         if let Ok(mut guard) = writer.lock() {
             let _ = guard.flush();
@@ -84,6 +107,10 @@ pub fn flush_trace() {
 }
 
 fn write_event(event: &TraceEvent) {
+    if trace_disabled() {
+        return;
+    }
+
     if let Some(writer) = TRACE_WRITER.get() {
         if let Ok(mut guard) = writer.lock() {
             let _ = to_writer(&mut *guard, event);
@@ -94,6 +121,10 @@ fn write_event(event: &TraceEvent) {
 }
 
 pub fn enter_function(function: &'static str) {
+    if trace_disabled() {
+        return;
+    }
+
     let event = TraceEvent::EnterFunction {
         function: function.to_string(),
         ts_millis: now_millis(),
@@ -105,6 +136,10 @@ pub fn enter_function(function: &'static str) {
 }
 
 pub fn exit_function(function: &'static str) {
+    if trace_disabled() {
+        return;
+    }
+
     let event = TraceEvent::ExitFunction {
         function: function.to_string(),
         ts_millis: now_millis(),
@@ -132,6 +167,10 @@ impl Drop for FunctionTraceGuard {
 }
 
 pub fn hit(site_id: &'static str) {
+    if trace_disabled() {
+        return;
+    }
+
     let event = TraceEvent::Hit {
         site_id: site_id.to_string(),
         ts_millis: now_millis(),
@@ -143,6 +182,10 @@ pub fn hit(site_id: &'static str) {
 }
 
 pub fn oracle_marker(oracle: &str, detail: &str) {
+    if trace_disabled() {
+        return;
+    }
+
     let event = TraceEvent::OracleMarker {
         oracle: oracle.to_string(),
         detail: detail.to_string(),
@@ -155,6 +198,10 @@ pub fn oracle_marker(oracle: &str, detail: &str) {
 }
 
 pub fn install_panic_hook() {
+    if trace_disabled() {
+        return;
+    }
+
     if PANIC_HOOK_INSTALLED.get().is_some() {
         return;
     }

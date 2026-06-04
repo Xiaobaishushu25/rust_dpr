@@ -38,12 +38,29 @@ members = [
   "benchmarks/taxonomy/tb_harness_misuse_invalid_input",
   "benchmarks/taxonomy/tb_inside_unsafe_panic",
   "benchmarks/taxonomy/tb_panic_after_drop_invariant",
-  "benchmarks/taxonomy/tb_before_dangerous_site_blocking",
 
+  "benchmarks/realworld/rw_smoke_raw_slice_view",
+
+  "benchmarks/oracle/ob_stack_oob_read",
+  "benchmarks/oracle/ob_global_oob_write",
+  "benchmarks/oracle/ob_null_deref_miri",
+  "benchmarks/oracle/ob_uninit_bool_miri",
+  "benchmarks/oracle/ob_invalid_bool_miri",
+  "benchmarks/oracle/ob_misaligned_read_miri",
+  "benchmarks/regression/rsec_slice_deque_drain_filter_panic",
+  "benchmarks/regression/rsec_toodee_draincol_copy_size",
+  "benchmarks/regression/rsec_tracing_into_inner_forget",
+  "benchmarks/regression/rsec_direct_ring_buffer_set_len",
+  "benchmarks/regression/rsec_borrowck_any_as_u8_slice",
+  "benchmarks/realworld/rw_bytes_frame_parser",
+  "benchmarks/realworld/rw_ffi_cstr_boundary",
+  "benchmarks/realworld/rw_image_stride_copy",
+  "benchmarks/realworld/rw_arena_nonnull_handle",
+  "benchmarks/realworld/rw_packet_set_len_decoder",
 ]
 exclude = [
   "benchmarks/micro/mb_panic_after_unsafe/fuzz",
-  "benchmarks/micro/mb_drop_then_panic",
+  "benchmarks/micro/mb_drop_then_panic/fuzz",
   "benchmarks/micro/mb_panic_before_unsafe/fuzz",
   "benchmarks/micro/mb_ffi_unwind_boundary/fuzz",
   "benchmarks/micro/mb_assume_init_ub/fuzz",
@@ -72,6 +89,27 @@ exclude = [
   "benchmarks/taxonomy/tb_panic_before_unsafe/fuzz",
   "benchmarks/taxonomy/tb_harness_misuse_invalid_input/fuzz",
 
+  "benchmarks/realworld/rw_smoke_raw_slice_view/fuzz",
+
+
+  "benchmarks/oracle/ob_stack_oob_read/fuzz",
+  "benchmarks/oracle/ob_global_oob_write/fuzz",
+  "benchmarks/oracle/ob_null_deref_miri/fuzz",
+  "benchmarks/oracle/ob_uninit_bool_miri/fuzz",
+  "benchmarks/oracle/ob_invalid_bool_miri/fuzz",
+  "benchmarks/oracle/ob_misaligned_read_miri/fuzz",
+
+  "benchmarks/regression/rsec_slice_deque_drain_filter_panic/fuzz",
+  "benchmarks/regression/rsec_toodee_draincol_copy_size/fuzz",
+  "benchmarks/regression/rsec_tracing_into_inner_forget/fuzz",
+  "benchmarks/regression/rsec_direct_ring_buffer_set_len/fuzz",
+  "benchmarks/regression/rsec_borrowck_any_as_u8_slice/fuzz",
+
+  "benchmarks/realworld/rw_bytes_frame_parser/fuzz",
+  "benchmarks/realworld/rw_ffi_cstr_boundary/fuzz",
+  "benchmarks/realworld/rw_image_stride_copy/fuzz",
+  "benchmarks/realworld/rw_arena_nonnull_handle/fuzz",
+  "benchmarks/realworld/rw_packet_set_len_decoder/fuzz",
 ]
 resolver = "2"
 

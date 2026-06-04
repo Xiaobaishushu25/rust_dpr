@@ -34,7 +34,13 @@ def main() -> int:
 
     existing_miriflags = os.environ.get("MIRIFLAGS", "").strip()
     miriflags = " ".join(part for part in [existing_miriflags, "-Zmiri-disable-isolation"] if part)
-    env = {"MIRIFLAGS": miriflags}
+    env = {
+        "MIRIFLAGS": miriflags,
+        # Oracle runs only need the target UB check. Disable RustDPR trace I/O
+        # so Miri does not stop on platform file-system calls such as
+        # CreateDirectoryW on Windows.
+        "RUSTDPR_DISABLE_TRACE": "1",
+    }
 
     run_cmd(
         [

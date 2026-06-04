@@ -1,0 +1,8 @@
+suite: realworld
+cases:
+  - rw_smoke_raw_slice_view
+  - rw_bytes_frame_parser
+  - rw_ffi_cstr_boundary
+  - rw_image_stride_copy
+  - rw_arena_nonnull_handle
+  - rw_packet_set_len_decoder

@@ -5,3 +5,9 @@ cases:
   - ob_oob_raw
   - ob_invalid_free
   - ob_use_after_scope
+  - ob_stack_oob_read
+  - ob_global_oob_write
+  - ob_null_deref_miri
+  - ob_uninit_bool_miri
+  - ob_invalid_bool_miri
+  - ob_misaligned_read_miri

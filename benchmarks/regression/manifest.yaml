@@ -1,0 +1,7 @@
+suite: regression
+cases:
+  - rsec_slice_deque_drain_filter_panic
+  - rsec_toodee_draincol_copy_size
+  - rsec_tracing_into_inner_forget
+  - rsec_direct_ring_buffer_set_len
+  - rsec_borrowck_any_as_u8_slice

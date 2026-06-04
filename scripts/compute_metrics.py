@@ -152,6 +152,10 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     security_relevant_expected = [r for r in expected_available if r["expected"].get("security_relevant")]
     true_meaningful = [r for r in security_relevant_expected if r["classification"].get("primary_label") in MEANINGFUL_LABELS]
 
+    wdpcs = [compute_wdpc(r) for r in rows]
+    ttds_values = [compute_ttds(r) for r in rows]
+    ttds_values = [v for v in ttds_values if v is not None]
+
     replay_summaries = []
     for r in rows:
         summary = Path(r["run_dir"]) / "replay_summary.json"
@@ -180,7 +184,57 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "harness_counts": dict(harness_counts),
         "primary_label_confusion": confusion_counts(expected_available, "primary_label"),
         "relation_confusion": confusion_counts(expected_available, "relation"),
+        "wdpc_mean": safe_div(sum(wdpcs), len(wdpcs)),
+        "ttds_mean_events": safe_div(sum(ttds_values), len(ttds_values)),
+        "ttds_observed_runs": len(ttds_values),
     }
+
+def load_run_artifact(row: dict[str, Any], filename: str) -> dict[str, Any] | None:
+    path = Path(row["run_dir"]) / filename
+    if not path.exists():
+        return None
+    return read_json(path)
+
+#Weighted Dangerous-Path Coverage
+def compute_wdpc(row: dict[str, Any]) -> float:
+    site_map = load_run_artifact(row, "site_map.json")
+    if not site_map:
+        return 0.0
+
+    classification = row["classification"]
+    reached = set(classification.get("reached_dangerous_sites") or [])
+
+    dangerous_sites = site_map.get("dangerous_sites") or []
+    total_weight = 0.0
+    reached_weight = 0.0
+
+    for site in dangerous_sites:
+        weight = float(site.get("kind_weight", 1.0) or 1.0)
+        total_weight += weight
+        if site.get("site_id") in reached:
+            reached_weight += weight
+
+    return safe_div(reached_weight, total_weight)
+
+#Time-to-Dangerous-Site
+def compute_ttds(row: dict[str, Any]) -> int | None:
+    trace = load_run_artifact(row, "trace_log.json")
+    site_map = load_run_artifact(row, "site_map.json")
+    if not trace or not site_map:
+        return None
+
+    dangerous_ids = {
+        site.get("site_id")
+        for site in site_map.get("dangerous_sites", [])
+    }
+
+    for idx, event in enumerate(trace.get("events", [])):
+        if event.get("Hit", {}).get("site_id") in dangerous_ids:
+            return idx
+        if event.get("type") == "Hit" and event.get("site_id") in dangerous_ids:
+            return idx
+
+    return None
 
 
 def main() -> int:

@@ -1,0 +1,36 @@
+case_id: rw_smoke_raw_slice_view
+suite: realworld
+category: realworld-smoke
+
+source:
+  crate_name: rw_smoke_raw_slice_view
+  version: local-smoke
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - PanicMacro
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: smoke harness maps raw bytes to public API without constructing invalid pointers directly
+
+selection:
+  reason: smoke case for validating the realworld suite pipeline before adding external crate snapshots
+  negative_case: false
+  manually_labeled: true
+
+notes:
+  - This case is for pipeline smoke only and should not be counted as a real-world paper benchmark.

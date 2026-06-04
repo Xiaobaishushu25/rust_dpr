@@ -273,7 +273,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ob_global_oob_write"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "ob_heap_uaf"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_invalid_bool_miri"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -287,7 +301,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "ob_misaligned_read_miri"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_null_deref_miri"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "ob_oob_raw"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_stack_oob_read"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_uninit_bool_miri"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -328,6 +370,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "rsec_borrowck_any_as_u8_slice"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rsec_direct_ring_buffer_set_len"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rsec_slice_deque_drain_filter_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rsec_toodee_draincol_copy_size"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rsec_tracing_into_inner_forget"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
 ]
 
 [[package]]
@@ -406,6 +483,48 @@ dependencies = [
  "rustdpr-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "rw_arena_nonnull_handle"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rw_bytes_frame_parser"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rw_ffi_cstr_boundary"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rw_image_stride_copy"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rw_packet_set_len_decoder"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rw_smoke_raw_slice_view"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
 ]
 
 [[package]]
