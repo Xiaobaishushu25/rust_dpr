@@ -11,3 +11,7 @@ cases:
   - ob_uninit_bool_miri
   - ob_invalid_bool_miri
   - ob_misaligned_read_miri
+  - ob_asan_no_finding_control
+  - ob_miri_unsupported_ffi
+  - ob_miri_no_finding_control
+  - ob_asan_oob_write_control

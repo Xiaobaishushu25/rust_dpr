@@ -3,7 +3,9 @@ use rustdpr_trace::{dpr_function, dpr_hit, install_panic_hook};
 pub fn copy_row(input: &[u8], width: usize, stride: usize) -> usize {
     install_panic_hook();
     let _guard = dpr_function!("crate::copy_row");
-    if input.len() < width || width == 0 { return 0; }
+    if input.len() < width || width == 0 {
+        return 0;
+    }
     let mut out = vec![0u8; width];
     unsafe {
         dpr_hit!("S00001");

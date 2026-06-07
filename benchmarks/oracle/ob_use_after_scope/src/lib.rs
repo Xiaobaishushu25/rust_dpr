@@ -11,11 +11,7 @@ pub fn trigger(read_after_scope: bool) -> u8 {
         }
     }
 
-    if read_after_scope {
-        unsafe { *ptr }
-    } else {
-        0
-    }
+    if read_after_scope { unsafe { *ptr } } else { 0 }
 }
 
 #[cfg(test)]

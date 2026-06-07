@@ -1,0 +1,23 @@
+[package]
+name = "mb_harness_aliasing_raw_mut-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+mb_harness_aliasing_raw_mut = { path = "..", package = "mb_harness_aliasing_raw_mut" }
+rustdpr-trace = { path = "../../../../crates/rustdpr-trace" }
+rustdpr-core = { path = "../../../../crates/rustdpr-core" }
+
+[[bin]]
+name = "fuzz_target_1"
+path = "fuzz_targets/fuzz_target_1.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

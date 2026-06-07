@@ -1,0 +1,33 @@
+case_id: tb_after_set_len_then_panic
+suite: taxonomy
+category: relation-taxonomy
+
+source:
+  crate_name: tb_after_set_len_then_panic
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationOwnership
+panic_kinds:
+  - ExplicitPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: safe API manipulates vector length internally before a controlled panic
+selection:
+  reason: AfterUnsafe taxonomy case using set_len rather than raw pointer dereference
+  negative_case: false
+  manually_labeled: true
+notes:
+  - This case increases dangerous-category diversity for relation classifier evaluation.

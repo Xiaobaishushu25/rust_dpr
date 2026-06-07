@@ -9,7 +9,10 @@ pub struct InstrumentedLike<T> {
 pub fn into_inner_like(trigger_panic: bool) -> u8 {
     install_panic_hook();
     let _guard = dpr_function!("crate::into_inner_like");
-    let this = ManuallyDrop::new(InstrumentedLike { span_id: 7, inner: 9u8 });
+    let this = ManuallyDrop::new(InstrumentedLike {
+        span_id: 7,
+        inner: 9u8,
+    });
     let inner_ptr: *const u8 = &this.inner;
     unsafe {
         dpr_hit!("S00001");

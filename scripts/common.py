@@ -20,7 +20,7 @@ DATA_DIR = ROOT_DIR / "data"
 REPORTS_DIR = ROOT_DIR / "reports"
 RUNS_DIR = DATA_DIR / "runs"
 
-SUITES = ("micro", "oracle", "taxonomy", "regression", "realworld")
+SUITES = ("micro", "taxonomy", "oracle", "regression", "realworld", "generated_harness")
 
 TOOLS = (
     "rustdpr",
@@ -31,6 +31,8 @@ TOOLS = (
     "miri-only",
     "fourfuzz-approx",
     "deepsurf-approx",
+    "rpg-approx",
+    "rulf-approx",
 )
 
 VARIANTS = (
@@ -40,7 +42,9 @@ VARIANTS = (
     "no-harness",
     "no-oracle",
     "panic-only",
+    "panic-message-only",
     "static-only",
+    "coverage-only",
     "unweighted",
     "crash-only",
     "oracle-only",
@@ -293,8 +297,12 @@ RELATION_LABEL_MAP = {
     "BeforeUnsafe": "BeforeUnsafe",
     "AfterUnsafe": "AfterUnsafe",
     "InsideUnsafe": "InsideUnsafe",
+    # AdjacentToUnsafe is kept for backward compatibility with earlier RustDPRBench
+    # annotations. New paper-facing labels should prefer Before/After/Inside/FfiBoundary.
     "AdjacentToUnsafe": "AdjacentToUnsafe",
     "FfiBoundary": "FfiBoundary",
+    "HarnessMisuse": "HarnessMisuse",
+    "UnsupportedOracle": "UnsupportedOracle",
     "Unknown": "Unknown",
 }
 
@@ -318,11 +326,14 @@ VALID_RELATION_LABELS = {
     "InsideUnsafe",
     "AdjacentToUnsafe",
     "FfiBoundary",
+    "HarnessMisuse",
+    "UnsupportedOracle",
     "Unknown",
 }
 
 VALID_ORACLE_VERDICTS = {
     "Unknown",
+    "NoOracleFinding",
     "AddressSanitizerDoubleFree",
     "AddressSanitizerUseAfterFree",
     "AddressSanitizerOutOfBounds",
@@ -331,6 +342,7 @@ VALID_ORACLE_VERDICTS = {
     "MiriUndefinedBehavior",
     "MiriUnsupported",
     "OracleTimeout",
+    "OracleBuildFailure",
 }
 
 VALID_HARNESS_STATUS = {
@@ -580,7 +592,9 @@ def parse_oracle_verdict_from_log_text(content: str, oracle: str) -> str:
             return fallback
         if contains_any(["timeout", "alarm", "max_total_time"]):
             return "OracleTimeout"
-        return "Unknown"
+        if contains_any(["build failed", "could not compile", "error: aborting due to", "linking with"]):
+            return "OracleBuildFailure"
+        return "NoOracleFinding"
 
     if oracle == "miri":
         # UB evidence should win over unsupported-environment notes. This is
@@ -625,6 +639,8 @@ def parse_oracle_verdict_from_log_text(content: str, oracle: str) -> str:
             "isolation error",
         ]):
             return "MiriUnsupported"
-        return "Unknown"
+        if contains_any(["build failed", "could not compile", "error: aborting due to", "linking with"]):
+            return "OracleBuildFailure"
+        return "NoOracleFinding"
 
     raise ValueError(f"unknown oracle: {oracle!r}")

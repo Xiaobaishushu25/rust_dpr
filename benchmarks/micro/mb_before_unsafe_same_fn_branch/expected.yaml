@@ -1,0 +1,33 @@
+case_id: mb_before_unsafe_same_fn_branch
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_before_unsafe_same_fn_branch
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: BlockingPanic
+  relation: BeforeUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - ExplicitPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target passes bytes into a safe API; zero input triggers a guard before the same-function unsafe block
+selection:
+  reason: hard negative for classifiers that collapse same-function panic and later unsafe into AfterUnsafe
+  negative_case: true
+  manually_labeled: true
+notes:
+  - This case should be classified as BeforeUnsafe even though the panic and dangerous site are in the same function.

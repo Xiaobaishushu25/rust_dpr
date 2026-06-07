@@ -1,21 +1,19 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use cargo_metadata::MetadataCommand;
 use rustdpr_core::model::{CrateMeta, TargetMeta};
 use std::collections::BTreeMap;
 use std::path::Path;
 
 /// 收集 Crate 的元数据信息
-/// 
+///
 /// # 参数
 /// * `crate_dir` - Crate 根目录路径
-/// 
+///
 /// # 返回值
 /// 返回包含 Crate 名称、版本、目标等信息的 CrateMeta 结构
 pub fn collect_metadata(crate_dir: &Path) -> Result<CrateMeta> {
     // 执行 cargo metadata 命令获取元数据
-    let metadata = MetadataCommand::new()
-        .current_dir(crate_dir)
-        .exec()?;
+    let metadata = MetadataCommand::new().current_dir(crate_dir).exec()?;
 
     // 获取根包（root package）
     let root_pkg = metadata

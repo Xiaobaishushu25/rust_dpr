@@ -30,16 +30,14 @@
 ///    - BeforeUnsafe → BlockingPanic
 ///    - AdjacentToUnsafe → SuspiciousCandidate
 ///    - NoneObserved + panic → ContractPanic
-
-
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 
 use rustdpr_core::{
     ClassificationNotes, ClassificationOptions, ClassificationResult, DangerousCategory,
     DangerousKind, DangerousPathGraph, DangerousSite, EvidenceStrength, HarnessValidityReport,
-    OracleEvidenceStrength, OracleVerdict, PrimaryLabel, RelationLabel, SiteMap, TraceEvent,
-    TraceLog, ValidityStatus, RUSTDPR_SCHEMA_VERSION,
+    OracleEvidenceStrength, OracleVerdict, PrimaryLabel, RUSTDPR_SCHEMA_VERSION, RelationLabel,
+    SiteMap, TraceEvent, TraceLog, ValidityStatus,
 };
 
 pub fn classify_execution_with_options(
@@ -50,7 +48,11 @@ pub fn classify_execution_with_options(
     oracle: Option<OracleVerdict>,
     options: ClassificationOptions,
 ) -> ClassificationResult {
-    let harness = if options.use_harness_validity { harness } else { None };
+    let harness = if options.use_harness_validity {
+        harness
+    } else {
+        None
+    };
     let oracle = if options.use_oracle { oracle } else { None };
 
     if options.panic_only {
@@ -82,13 +84,21 @@ pub fn classify_execution_with_options(
     let reached_dangerous_sites = collect_reached_dangerous_sites(site_map, trace);
     let relation_evidence = infer_relation_evidence(site_map, trace, dpg);
 
-    notes.counters.insert("trace_events".into(), trace.events.len());
-    notes.counters.insert("function_enter".into(), trace.enter_count());
-    notes.counters.insert("function_exit".into(), trace.exit_count());
+    notes
+        .counters
+        .insert("trace_events".into(), trace.events.len());
+    notes
+        .counters
+        .insert("function_enter".into(), trace.enter_count());
+    notes
+        .counters
+        .insert("function_exit".into(), trace.exit_count());
     notes
         .counters
         .insert("dangerous_hits".into(), reached_dangerous_sites.len());
-    notes.counters.insert("panic_count".into(), trace.panic_count());
+    notes
+        .counters
+        .insert("panic_count".into(), trace.panic_count());
     notes
         .counters
         .insert("dpg_reachability_facts".into(), dpg.reachability.len());
@@ -110,14 +120,17 @@ pub fn classify_execution_with_options(
             reached_dangerous_sites.join(", ")
         ));
     }
-    notes
-        .evidence_summary
-        .push(format!("oracle evidence strength: {:?}", oracle_evidence_strength));
+    notes.evidence_summary.push(format!(
+        "oracle evidence strength: {:?}",
+        oracle_evidence_strength
+    ));
 
     // Harness 本身不可信时，优先短路。
     // 这里不要再保留 InsideUnsafe / AfterUnsafe 关系，否则会把 harness 误用和目标库缺陷混在一起。
     if harness_status == ValidityStatus::LikelyMisuse || harness_status == ValidityStatus::Invalid {
-        notes.fired_rules.push("harness-misuse-short-circuit".into());
+        notes
+            .fired_rules
+            .push("harness-misuse-short-circuit".into());
         notes
             .decision_path
             .push(format!("harness_status={:?}", harness_status));
@@ -126,7 +139,7 @@ pub fn classify_execution_with_options(
             case_name: trace.case_name.clone(),
             suite: trace.suite.clone(),
             primary_label: PrimaryLabel::HarnessMisuse,
-            relation: RelationLabel::NoneObserved,
+            relation: RelationLabel::HarnessMisuse,
             reached_dangerous_sites,
             nearest_dangerous_site: None,
             distance_to_dangerous_site: None,
@@ -226,7 +239,9 @@ fn decide_primary_label(
             // AfterUnsafe 只是“panic 发生在危险点之后”的关系，不等于一定是强 bug。
             // 是否升级为 PanicAfterUnsafe，取决于候选危险点的可操作性和证据强度。
             if actionability >= 0.72 {
-                notes.fired_rules.push("panic-after-actionable-unsafe".into());
+                notes
+                    .fired_rules
+                    .push("panic-after-actionable-unsafe".into());
                 (PrimaryLabel::PanicAfterUnsafe, 0.90, false)
             } else {
                 notes
@@ -262,6 +277,16 @@ fn decide_primary_label(
             (PrimaryLabel::SuspiciousCandidate, 0.68, true)
         }
 
+        (_, _, RelationLabel::HarnessMisuse) => {
+            notes.fired_rules.push("harness-misuse-relation".into());
+            (PrimaryLabel::HarnessMisuse, 0.95, false)
+        }
+
+        (_, _, RelationLabel::UnsupportedOracle) => {
+            notes.fired_rules.push("unsupported-oracle-relation".into());
+            (PrimaryLabel::SuspiciousCandidate, 0.50, true)
+        }
+
         (true, _, RelationLabel::NoneObserved) => {
             notes.fired_rules.push("contract-panic".into());
             (PrimaryLabel::ContractPanic, 0.68, true)
@@ -295,8 +320,10 @@ fn strength_for_oracle(verdict: &OracleVerdict) -> OracleEvidenceStrength {
         | OracleVerdict::AddressSanitizerLeak
         | OracleVerdict::MiriUndefinedBehavior => OracleEvidenceStrength::Confirmed,
         OracleVerdict::MiriUnsupported => OracleEvidenceStrength::Unsupported,
-        OracleVerdict::OracleTimeout => OracleEvidenceStrength::WeakHeuristic,
-        OracleVerdict::Unknown => OracleEvidenceStrength::Unknown,
+        OracleVerdict::OracleTimeout | OracleVerdict::OracleBuildFailure => {
+            OracleEvidenceStrength::WeakHeuristic
+        }
+        OracleVerdict::NoOracleFinding | OracleVerdict::Unknown => OracleEvidenceStrength::Unknown,
     }
 }
 
@@ -457,14 +484,18 @@ fn infer_relation_evidence(
 }
 
 fn first_panic_location(trace: &TraceLog) -> Option<PanicLocation> {
-    trace.events.iter().enumerate().find_map(|(idx, event)| match event {
-        TraceEvent::Panic { file, line, .. } => Some(PanicLocation {
-            event_idx: idx,
-            file: file.clone(),
-            line: line.map(|v| v as usize),
-        }),
-        _ => None,
-    })
+    trace
+        .events
+        .iter()
+        .enumerate()
+        .find_map(|(idx, event)| match event {
+            TraceEvent::Panic { file, line, .. } => Some(PanicLocation {
+                event_idx: idx,
+                file: file.clone(),
+                line: line.map(|v| v as usize),
+            }),
+            _ => None,
+        })
 }
 
 fn build_relation_candidates<'a>(
@@ -497,10 +528,10 @@ fn build_relation_candidates<'a>(
         let graph_relation = graph_nearest.as_ref().and_then(|nearest| {
             if nearest.distance.is_some_and(|d| d <= 2)
                 && nearest
-                .nearest_site
-                .as_ref()
-                .map(|id| same_site_id(id, &site.site_id))
-                .unwrap_or(false)
+                    .nearest_site
+                    .as_ref()
+                    .map(|id| same_site_id(id, &site.site_id))
+                    .unwrap_or(false)
             {
                 Some(RelationLabel::AdjacentToUnsafe)
             } else {
@@ -605,6 +636,8 @@ fn relation_priority(relation: &RelationLabel) -> i32 {
         RelationLabel::BeforeUnsafe => 3,
         RelationLabel::AdjacentToUnsafe => 2,
         RelationLabel::FfiBoundary => 2,
+        RelationLabel::HarnessMisuse => 2,
+        RelationLabel::UnsupportedOracle => 1,
         RelationLabel::NoneObserved => 1,
         RelationLabel::Unknown => 0,
     }
@@ -694,10 +727,10 @@ fn collect_candidate_conflicts(
 
     if best.relation == RelationLabel::AfterUnsafe
         && candidates.iter().any(|c| {
-        c.site.site_id != best.site.site_id
-            && c.relation == RelationLabel::InsideUnsafe
-            && is_container_site(c.site)
-    })
+            c.site.site_id != best.site.site_id
+                && c.relation == RelationLabel::InsideUnsafe
+                && is_container_site(c.site)
+        })
     {
         conflicts.push(
             "an unsafe container also covers the panic, but a more specific dangerous operation was selected".into(),
@@ -722,6 +755,8 @@ fn candidate_score(
         RelationLabel::BeforeUnsafe => 62.0,
         RelationLabel::AdjacentToUnsafe => 35.0,
         RelationLabel::FfiBoundary => 35.0,
+        RelationLabel::HarnessMisuse => 30.0,
+        RelationLabel::UnsupportedOracle => 15.0,
         RelationLabel::NoneObserved => 10.0,
         RelationLabel::Unknown => 0.0,
     };
@@ -731,9 +766,7 @@ fn candidate_score(
     let temporal_bonus = temporal_gap
         .map(|gap| 8.0 / (gap as f32 + 1.0))
         .unwrap_or(0.0);
-    let line_bonus = line_gap
-        .map(|gap| 6.0 / (gap as f32 + 1.0))
-        .unwrap_or(0.0);
+    let line_bonus = line_gap.map(|gap| 6.0 / (gap as f32 + 1.0)).unwrap_or(0.0);
     let graph_bonus = graph_distance
         .map(|d| 4.0 / (d as f32 + 1.0))
         .unwrap_or(0.0);
@@ -749,7 +782,9 @@ fn candidate_score(
 
 fn kind_specificity(site: &DangerousSite) -> f32 {
     match site.kind {
-        DangerousKind::UnsafeFn | DangerousKind::UnsafeBlock | DangerousKind::UnsafeTraitImpl => -22.0,
+        DangerousKind::UnsafeFn | DangerousKind::UnsafeBlock | DangerousKind::UnsafeTraitImpl => {
+            -22.0
+        }
         DangerousKind::TargetApiMisuseCandidate => -15.0,
         DangerousKind::FfiDeclaration | DangerousKind::FfiBoundary => -5.0,
         DangerousKind::MaybeUninitCandidate | DangerousKind::AssumeInitCandidate => 30.0,
@@ -787,7 +822,9 @@ fn dangerous_actionability(site: &DangerousSite) -> f32 {
         | DangerousKind::FfiBoundary => 0.84,
         DangerousKind::FfiDeclaration => 0.55,
 
-        DangerousKind::UnsafeBlock | DangerousKind::UnsafeFn | DangerousKind::UnsafeTraitImpl => 0.50,
+        DangerousKind::UnsafeBlock | DangerousKind::UnsafeFn | DangerousKind::UnsafeTraitImpl => {
+            0.50
+        }
         DangerousKind::TargetApiMisuseCandidate => 0.30,
         DangerousKind::RawAddrCandidate => 0.40,
         DangerousKind::MemForget => 0.58,
@@ -1087,9 +1124,10 @@ fn classify_static_only(
         .unwrap_or(ValidityStatus::Unknown);
     let mut notes = ClassificationNotes::default();
     notes.fired_rules.push("static-only-baseline".into());
-    notes
-        .counters
-        .insert("static_dangerous_sites".into(), site_map.dangerous_sites.len());
+    notes.counters.insert(
+        "static_dangerous_sites".into(),
+        site_map.dangerous_sites.len(),
+    );
     notes
         .counters
         .insert("static_panic_sites".into(), site_map.panic_sites.len());

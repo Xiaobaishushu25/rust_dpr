@@ -1,0 +1,32 @@
+case_id: mb_harness_null_ptr_direct
+suite: micro
+category: harness-misuse-control
+
+source:
+  crate_name: mb_harness_null_ptr_direct
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: HarnessMisuse
+  relation: HarnessMisuse
+  oracle_verdict: Unknown
+  harness_status: LikelyMisuse
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: the fuzz target deliberately passes a null raw pointer into an unsafe API whose safety precondition requires a valid pointer
+selection:
+  reason: direct null-pointer harness misuse case for RQ4 and no-harness ablation
+  negative_case: true
+  manually_labeled: true
+notes:
+  - Library safe_wrapper is valid; the invalid candidate only exists when the harness calls unsafe_read_first(null).

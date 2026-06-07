@@ -162,7 +162,56 @@ dependencies = [
 ]
 
 [[package]]
+name = "mb_before_unsafe_guarded_by_length"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_before_unsafe_nested_call"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_before_unsafe_same_fn_branch"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_drop_invariant_after_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "mb_drop_then_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_ffi_c_unwind_callback_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_ffi_callback_panics"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_ffi_extern_c_unwind_boundary"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -176,6 +225,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mb_harness_aliasing_raw_mut"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_harness_invalid_len_capacity"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "mb_harness_misuse_null"
 version = "0.1.0"
 dependencies = [
@@ -183,7 +246,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "mb_harness_null_ptr_direct"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_inside_unsafe_assert"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_inside_unsafe_index"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_inside_unsafe_unwrap"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_maybeuninit_assume_init_after_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "mb_maybeuninit_read"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "mb_none_static_unsafe_unreached"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -266,6 +371,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
+name = "ob_asan_no_finding_control"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_asan_oob_write_control"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "ob_double_free"
 version = "0.1.0"
 dependencies = [
@@ -295,6 +414,20 @@ dependencies = [
 
 [[package]]
 name = "ob_invalid_free"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_miri_no_finding_control"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "ob_miri_unsupported_ffi"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -381,6 +514,20 @@ dependencies = [
 
 [[package]]
 name = "rsec_direct_ring_buffer_set_len"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rsec_slice_deque_2021_0047_fixed_control"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "rsec_slice_deque_2021_0047_vuln"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -621,7 +768,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "tb_after_set_len_then_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "tb_before_dangerous_site_blocking"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_before_nested_callee"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_before_same_function_later_block"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -635,6 +803,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "tb_ffi_callback_panics"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_ffi_extern_c_unwind"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_harness_aliasing_raw_mut"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_harness_bad_from_raw_parts"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_harness_direct_unsafe_precondition"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "tb_harness_misuse_invalid_input"
 version = "0.1.0"
 dependencies = [
@@ -642,7 +845,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "tb_inside_unsafe_assert_macro"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
 name = "tb_inside_unsafe_panic"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_inside_unsafe_unwrap"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_none_high_coverage_no_danger"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",
@@ -657,6 +881,13 @@ dependencies = [
 
 [[package]]
 name = "tb_panic_before_unsafe"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+]
+
+[[package]]
+name = "tb_static_unsafe_unreached"
 version = "0.1.0"
 dependencies = [
  "rustdpr-trace",

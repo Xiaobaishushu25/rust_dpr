@@ -16,7 +16,10 @@ pub fn trigger(trigger_panic: bool) -> u8 {
 
     let byte = *recovered;
     drop(recovered);
-    assert!(!trigger_panic, "panic after manual drop-invariant operation");
+    assert!(
+        !trigger_panic,
+        "panic after manual drop-invariant operation"
+    );
     byte
 }
 

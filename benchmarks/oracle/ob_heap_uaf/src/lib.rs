@@ -8,11 +8,7 @@ pub fn trigger(flag: bool) -> u8 {
         hit("S00001");
         drop(Box::from_raw(ptr));
 
-        if flag {
-            *ptr
-        } else {
-            0
-        }
+        if flag { *ptr } else { 0 }
     }
 }
 

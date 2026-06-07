@@ -1,0 +1,33 @@
+case_id: mb_ffi_extern_c_unwind_boundary
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_ffi_extern_c_unwind_boundary
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: FfiBoundary
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - Ffi
+panic_kinds:
+  - ExplicitPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: harness passes bytes to a safe Rust wrapper; the wrapper models an extern C-unwind boundary
+selection:
+  reason: controlled FFI boundary case without requiring a native C dependency
+  negative_case: false
+  manually_labeled: true
+notes:
+  - This is intentionally C-unwind rather than extern C so the panic can be caught by fuzz harnesses during tests.

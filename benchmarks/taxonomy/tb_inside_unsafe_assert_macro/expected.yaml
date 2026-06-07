@@ -1,0 +1,33 @@
+case_id: tb_inside_unsafe_assert_macro
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_inside_unsafe_assert_macro
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: InsideUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - AssertPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target passes bytes to a safe API; the library assertion occurs after entering the unsafe region
+selection:
+  reason: taxonomy stress case for assert! panics inside unsafe regions
+  negative_case: false
+  manually_labeled: true
+notes:
+  - Avoids overfitting InsideUnsafe to unwrap-only or panic!-only patterns.

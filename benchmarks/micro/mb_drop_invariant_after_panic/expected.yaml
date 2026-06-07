@@ -1,0 +1,34 @@
+case_id: mb_drop_invariant_after_panic
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_drop_invariant_after_panic
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - DropInvariant
+  - AllocationOwnership
+panic_kinds:
+  - ExplicitPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: harness reaches a safe public function; the library duplicates ownership with ptr::read before a panic
+selection:
+  reason: controlled panic-safety case modeling historical iterator/drop-invariant failures
+  negative_case: false
+  manually_labeled: true
+notes:
+  - The ignored test documents the dangerous path without making cargo test crash by default.

@@ -1,0 +1,33 @@
+case_id: tb_ffi_callback_panics
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_ffi_callback_panics
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: FfiBoundary
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - FfiBoundary
+panic_kinds:
+  - PanicMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target invokes a safe Rust wrapper around an extern C-unwind predicate callback
+selection:
+  reason: taxonomy stress case for callback-based FFI boundary panic classification
+  negative_case: false
+  manually_labeled: true
+notes:
+  - Helps separate FfiBoundary from generic InsideUnsafe in the relation confusion matrix.

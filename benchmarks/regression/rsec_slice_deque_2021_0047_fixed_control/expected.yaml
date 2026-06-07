@@ -1,0 +1,41 @@
+case_id: rsec_slice_deque_2021_0047_fixed_control
+suite: regression
+category: regression-fixed-control
+
+source:
+  crate_name: slice-deque
+  vulnerable_version: "<=0.3.0"
+  fixed_version: manual-fixed-control
+  advisory: RUSTSEC-2021-0047
+  cve: CVE-2021-29938
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0047.html
+  secondary_url: https://github.com/advisories/GHSA-p9gf-gmfv-398m
+  snapshot_kind: minimized-manual-fixed-control
+
+ground_truth:
+  primary_label: BlockingPanic
+  relation: BeforeUnsafe
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+  - DropInvariant
+  - AllocationOwnership
+panic_kinds:
+  - PanicMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: deterministic fuzz target invokes the fixed-control public API and does not fabricate invalid raw pointers or invalid ownership state
+selection:
+  reason: paired negative control for RUSTSEC-2021-0047; panic occurs before fixed iterator state/raw access
+  negative_case: true
+  manually_labeled: true
+controls:
+  vulnerable_version_case: rsec_slice_deque_2021_0047_vuln
+notes:
+  - This is a manual fixed control because public advisory metadata lists no patched slice-deque release.
+  - It is intended to check whether RustDPR distinguishes similar API coverage from dangerous panic-after-unsafe evidence.

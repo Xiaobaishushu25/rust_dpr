@@ -95,7 +95,9 @@ impl DangerousPathGraph {
 
     pub fn node_exists(&self, node_id: &str) -> bool {
         let key = normalize_symbol(node_id);
-        self.nodes.iter().any(|n| n.id == node_id || n.normalized_id == key)
+        self.nodes
+            .iter()
+            .any(|n| n.id == node_id || n.normalized_id == key)
     }
 
     pub fn outgoing<'a>(&'a self, node_id: &'a str) -> impl Iterator<Item = &'a DpgEdge> {
@@ -108,7 +110,12 @@ impl DangerousPathGraph {
     pub fn dangerous_site_ids(&self) -> Vec<&str> {
         self.nodes
             .iter()
-            .filter(|n| matches!(n.kind, DpgNodeKind::DangerousSite | DpgNodeKind::FfiBoundary))
+            .filter(|n| {
+                matches!(
+                    n.kind,
+                    DpgNodeKind::DangerousSite | DpgNodeKind::FfiBoundary
+                )
+            })
             .map(|n| n.id.as_str())
             .collect()
     }
@@ -129,12 +136,24 @@ impl DangerousPathGraph {
             .find(|n| n.id == from_node || n.normalized_id == key)
             .map(|n| n.id.clone());
         let Some(start) = start else {
-            return UnsafeDistanceResult { from_node: from_node.to_string(), nearest_site: None, distance: None };
+            return UnsafeDistanceResult {
+                from_node: from_node.to_string(),
+                nearest_site: None,
+                distance: None,
+            };
         };
 
-        let dangerous: HashSet<String> = self.dangerous_site_ids().into_iter().map(normalize_symbol).collect();
+        let dangerous: HashSet<String> = self
+            .dangerous_site_ids()
+            .into_iter()
+            .map(normalize_symbol)
+            .collect();
         if dangerous.contains(&normalize_symbol(&start)) {
-            return UnsafeDistanceResult { from_node: from_node.to_string(), nearest_site: Some(start), distance: Some(0) };
+            return UnsafeDistanceResult {
+                from_node: from_node.to_string(),
+                nearest_site: Some(start),
+                distance: Some(0),
+            };
         }
 
         let mut q = VecDeque::new();
@@ -166,14 +185,23 @@ impl DangerousPathGraph {
             }
         }
 
-        UnsafeDistanceResult { from_node: from_node.to_string(), nearest_site: None, distance: None }
+        UnsafeDistanceResult {
+            from_node: from_node.to_string(),
+            nearest_site: None,
+            distance: None,
+        }
     }
 
     pub fn compute_reachability(&mut self) {
         let sources: Vec<String> = self
             .nodes
             .iter()
-            .filter(|n| matches!(n.kind, DpgNodeKind::PublicApi | DpgNodeKind::Function | DpgNodeKind::PanicSite))
+            .filter(|n| {
+                matches!(
+                    n.kind,
+                    DpgNodeKind::PublicApi | DpgNodeKind::Function | DpgNodeKind::PanicSite
+                )
+            })
             .map(|n| n.id.clone())
             .collect();
 

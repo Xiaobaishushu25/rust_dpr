@@ -1,0 +1,42 @@
+case_id: rsec_slice_deque_2021_0047_vuln
+suite: regression
+category: regression-rustsec-reproducer
+
+source:
+  crate_name: slice-deque
+  vulnerable_version: "<=0.3.0"
+  fixed_version: null
+  advisory: RUSTSEC-2021-0047
+  cve: CVE-2021-29938
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0047.html
+  secondary_url: https://github.com/advisories/GHSA-p9gf-gmfv-398m
+  snapshot_kind: minimized-public-advisory-reproducer
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+  - DropInvariant
+  - AllocationOwnership
+panic_kinds:
+  - PanicMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: deterministic fuzz target invokes the public reproducer API and toggles the predicate panic condition from input bytes
+selection:
+  reason: first RustSec-backed regression reproducer for the SliceDeque::drain_filter panic-safety double-drop pattern
+  negative_case: false
+  manually_labeled: true
+controls:
+  fixed_version_case: rsec_slice_deque_2021_0047_fixed_control
+notes:
+  - Public advisories describe the vulnerable pattern as advancing drain_filter iterator state before a predicate that may panic.
+  - This is a minimized public-advisory reproducer, not yet a vendored full slice-deque crate snapshot.
+  - GitHub advisory metadata lists no patched versions, so the paired control is a manual fixed-control implementation.

@@ -1,0 +1,34 @@
+case_id: tb_harness_bad_from_raw_parts
+suite: taxonomy
+category: taxonomy-harness-misuse
+
+source:
+  crate_name: tb_harness_bad_from_raw_parts
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: HarnessMisuse
+  relation: HarnessMisuse
+  oracle_verdict: Unknown
+  harness_status: LikelyMisuse
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - AllocationOwnership
+  - RawPointer
+panic_kinds:
+  - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target constructs raw pointer/length pairs outside the unsafe API contract
+selection:
+  reason: taxonomy case for distinguishing harness misuse from library vulnerability candidate
+  negative_case: true
+  manually_labeled: true
+notes:
+  - invalid inputs panic before the from_raw_parts dangerous site

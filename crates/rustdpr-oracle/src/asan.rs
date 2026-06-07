@@ -6,16 +6,30 @@ pub fn parse_asan_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
     let mut evidence = Vec::new();
 
     let mut parsed_from_canonical_line = false;
-    let (verdict, bug_kind) = if let Some((verdict, bug_kind)) = classify_canonical_asan_lines(&lower) {
-        parsed_from_canonical_line = true;
-        (verdict, Some(bug_kind.to_string()))
-    } else if let Some((verdict, bug_kind)) = classify_asan_issue_text(&lower) {
-        (verdict, Some(bug_kind.to_string()))
-    } else if contains_any(&lower, &["timeout", "alarm", "max_total_time"]) {
-        (OracleVerdict::OracleTimeout, Some("timeout".to_string()))
-    } else {
-        (OracleVerdict::Unknown, None)
-    };
+    let (verdict, bug_kind) =
+        if let Some((verdict, bug_kind)) = classify_canonical_asan_lines(&lower) {
+            parsed_from_canonical_line = true;
+            (verdict, Some(bug_kind.to_string()))
+        } else if let Some((verdict, bug_kind)) = classify_asan_issue_text(&lower) {
+            (verdict, Some(bug_kind.to_string()))
+        } else if contains_any(&lower, &["timeout", "alarm", "max_total_time"]) {
+            (OracleVerdict::OracleTimeout, Some("timeout".to_string()))
+        } else if contains_any(
+            &lower,
+            &[
+                "build failed",
+                "could not compile",
+                "linking with",
+                "error: aborting due to",
+            ],
+        ) {
+            (
+                OracleVerdict::OracleBuildFailure,
+                Some("build-failure".to_string()),
+            )
+        } else {
+            (OracleVerdict::NoOracleFinding, None)
+        };
 
     match verdict {
         OracleVerdict::AddressSanitizerDoubleFree => {
@@ -27,14 +41,19 @@ pub fn parse_asan_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
         OracleVerdict::AddressSanitizerOutOfBounds => {
             evidence.push("ASan reported buffer overflow/out-of-bounds".to_string())
         }
-        OracleVerdict::AddressSanitizerInvalidFree => {
-            evidence.push("ASan reported invalid free or allocation/deallocation mismatch".to_string())
-        }
+        OracleVerdict::AddressSanitizerInvalidFree => evidence
+            .push("ASan reported invalid free or allocation/deallocation mismatch".to_string()),
         OracleVerdict::AddressSanitizerLeak => {
             evidence.push("LeakSanitizer reported memory leak".to_string())
         }
         OracleVerdict::OracleTimeout => {
             evidence.push("oracle run appears to have timed out".to_string())
+        }
+        OracleVerdict::OracleBuildFailure => {
+            evidence.push("oracle run failed to build or link".to_string())
+        }
+        OracleVerdict::NoOracleFinding => {
+            evidence.push("ASan log did not contain a recognized sanitizer finding".to_string())
         }
         _ => {}
     }
@@ -49,13 +68,26 @@ pub fn parse_asan_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
         evidence.push("log contains canonical ASan ERROR header".to_string());
     }
 
-    let status = if verdict == OracleVerdict::Unknown { "unknown" } else { "confirmed" };
-    let evidence_strength = if verdict == OracleVerdict::Unknown {
-        OracleEvidenceStrength::Unknown
-    } else if parsed_from_canonical_line || evidence.iter().any(|e| e.contains("SUMMARY") || e.contains("canonical")) {
-        OracleEvidenceStrength::Confirmed
-    } else {
-        OracleEvidenceStrength::StrongHeuristic
+    let status = match verdict {
+        OracleVerdict::OracleTimeout => "timeout",
+        OracleVerdict::OracleBuildFailure => "build_failure",
+        OracleVerdict::NoOracleFinding => "no_finding",
+        OracleVerdict::Unknown => "unknown",
+        _ => "confirmed",
+    };
+    let evidence_strength = match verdict {
+        OracleVerdict::OracleTimeout | OracleVerdict::OracleBuildFailure => {
+            OracleEvidenceStrength::Unsupported
+        }
+        OracleVerdict::NoOracleFinding | OracleVerdict::Unknown => OracleEvidenceStrength::Unknown,
+        _ if parsed_from_canonical_line
+            || evidence
+                .iter()
+                .any(|e| e.contains("SUMMARY") || e.contains("canonical")) =>
+        {
+            OracleEvidenceStrength::Confirmed
+        }
+        _ => OracleEvidenceStrength::StrongHeuristic,
     };
 
     OracleReport {
@@ -73,7 +105,8 @@ pub fn parse_asan_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
 
 fn classify_canonical_asan_lines(content: &str) -> Option<(OracleVerdict, &'static str)> {
     for line in content.lines() {
-        if line.contains("error: addresssanitizer:") || line.contains("summary: addresssanitizer:") {
+        if line.contains("error: addresssanitizer:") || line.contains("summary: addresssanitizer:")
+        {
             if let Some(classification) = classify_asan_issue_text(line) {
                 return Some(classification);
             }
@@ -98,8 +131,18 @@ fn classify_asan_issue_text(text: &str) -> Option<(OracleVerdict, &'static str)>
     ) {
         return Some((OracleVerdict::AddressSanitizerOutOfBounds, "out-of-bounds"));
     }
-    if contains_any(text, &["heap-use-after-free", "stack-use-after-return", "use-after-free"]) {
-        return Some((OracleVerdict::AddressSanitizerUseAfterFree, "use-after-free"));
+    if contains_any(
+        text,
+        &[
+            "heap-use-after-free",
+            "stack-use-after-return",
+            "use-after-free",
+        ],
+    ) {
+        return Some((
+            OracleVerdict::AddressSanitizerUseAfterFree,
+            "use-after-free",
+        ));
     }
     if contains_any(
         text,
@@ -112,7 +155,15 @@ fn classify_asan_issue_text(text: &str) -> Option<(OracleVerdict, &'static str)>
     ) {
         return Some((OracleVerdict::AddressSanitizerInvalidFree, "invalid-free"));
     }
-    if contains_any(text, &["leaksanitizer", "detected memory leaks", "direct leak of", "indirect leak of"]) {
+    if contains_any(
+        text,
+        &[
+            "leaksanitizer",
+            "detected memory leaks",
+            "direct leak of",
+            "indirect leak of",
+        ],
+    ) {
         return Some((OracleVerdict::AddressSanitizerLeak, "memory-leak"));
     }
     None

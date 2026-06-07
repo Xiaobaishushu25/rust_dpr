@@ -20,7 +20,6 @@ pub fn parse_miri_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
         "uninitialized",
         "invalid enum discriminant",
         "violated precondition",
-
         // Extra Miri UB diagnostics seen in validity and alignment cases.
         "constructing invalid value",
         "invalid value",
@@ -50,7 +49,9 @@ pub fn parse_miri_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
         evidence.push("Miri reported concrete UB/precondition violation".to_string());
         if contains_any(&lower, &api_misuse_markers) {
             target_api_misuse = true;
-            evidence.push("UB evidence appears tied to target API misuse/precondition violation".to_string());
+            evidence.push(
+                "UB evidence appears tied to target API misuse/precondition violation".to_string(),
+            );
         }
 
         let evidence_strength = if target_api_misuse {
@@ -94,31 +95,54 @@ pub fn parse_miri_log(content: &str, raw_log_path: Option<String>) -> OracleRepo
             verdict: OracleVerdict::MiriUnsupported,
             bug_kind: None,
             raw_log_path,
-            unsupported_reason: Some("unsupported operation or FFI/OS dependency in Miri run".into()),
+            unsupported_reason: Some(
+                "unsupported operation or FFI/OS dependency in Miri run".into(),
+            ),
             evidence_strength: OracleEvidenceStrength::Unsupported,
             target_api_misuse: false,
             evidence,
         };
     }
 
-    let verdict = if lower.contains("error:") && lower.contains("miri") {
+    let (verdict, status, evidence_strength, bug_kind) = if contains_any(
+        &lower,
+        &[
+            "build failed",
+            "could not compile",
+            "error: aborting due to",
+            "linking with",
+        ],
+    ) {
+        evidence.push("Miri oracle target failed to build or link".to_string());
+        (
+            OracleVerdict::OracleBuildFailure,
+            "build_failure",
+            OracleEvidenceStrength::Unsupported,
+            Some("build-failure".into()),
+        )
+    } else if lower.contains("error:") && lower.contains("miri") {
         evidence.push("Miri emitted an error, but no precise UB marker matched".to_string());
-        OracleVerdict::Unknown
+        (
+            OracleVerdict::Unknown,
+            "unknown",
+            OracleEvidenceStrength::WeakHeuristic,
+            None,
+        )
     } else {
-        OracleVerdict::Unknown
-    };
-
-    let evidence_strength = if !evidence.is_empty() {
-        OracleEvidenceStrength::WeakHeuristic
-    } else {
-        OracleEvidenceStrength::Unknown
+        evidence.push("Miri log did not contain a recognized UB finding".to_string());
+        (
+            OracleVerdict::NoOracleFinding,
+            "no_finding",
+            OracleEvidenceStrength::Unknown,
+            None,
+        )
     };
 
     OracleReport {
         oracle_name: "miri".into(),
-        status: if verdict == OracleVerdict::Unknown { "unknown".into() } else { "confirmed".into() },
+        status: status.into(),
         verdict,
-        bug_kind: None,
+        bug_kind,
         raw_log_path,
         unsupported_reason: None,
         evidence_strength,

@@ -4,7 +4,9 @@ use std::ptr::NonNull;
 pub fn allocate_handle(input: &[u8]) -> usize {
     install_panic_hook();
     let _guard = dpr_function!("crate::allocate_handle");
-    if input.is_empty() { return 0; }
+    if input.is_empty() {
+        return 0;
+    }
     let mut buf = input.to_vec();
     let handle = unsafe {
         dpr_hit!("S00001");

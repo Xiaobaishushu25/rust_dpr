@@ -1,0 +1,32 @@
+case_id: ob_asan_no_finding_control
+suite: oracle
+category: oracle-negative-control
+
+source:
+  crate_name: ob_asan_no_finding_control
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: DangerousPathReached
+  relation: AfterUnsafe
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: safe API performs a valid raw pointer read from a stack byte
+selection:
+  reason: oracle negative control; dangerous-looking raw pointer operation should not automatically become an oracle-confirmed bug
+  negative_case: true
+  manually_labeled: true
+notes:
+  - expected ASan/Miri verdict is NoOracleFinding after the oracle parser patch

@@ -8,3 +8,15 @@ cases:
   - tb_contract_panic_no_unsafe
   - tb_harness_misuse_invalid_input
   - tb_panic_after_drop_invariant
+  - tb_before_same_function_later_block
+  - tb_static_unsafe_unreached
+  - tb_harness_bad_from_raw_parts
+  - tb_before_nested_callee
+  - tb_inside_unsafe_unwrap
+  - tb_ffi_extern_c_unwind
+  - tb_harness_direct_unsafe_precondition
+  - tb_none_high_coverage_no_danger
+  - tb_after_set_len_then_panic
+  - tb_ffi_callback_panics
+  - tb_inside_unsafe_assert_macro
+  - tb_harness_aliasing_raw_mut

@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 use rustdpr_core::TraceEvent;
 use serde_json::to_writer;
 use std::env;
-use std::fs::{create_dir_all, File};
+use std::fs::{File, create_dir_all};
 use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::sync::Mutex;

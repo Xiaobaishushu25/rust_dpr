@@ -1,0 +1,34 @@
+case_id: mb_harness_invalid_len_capacity
+suite: micro
+category: harness-misuse
+
+source:
+  crate_name: mb_harness_invalid_len_capacity
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: HarnessMisuse
+  relation: HarnessMisuse
+  oracle_verdict: Unknown
+  harness_status: LikelyMisuse
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+  - AllocationOwnership
+panic_kinds:
+  - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target deliberately fabricates raw pointer/length pairs that violate the unsafe API safety contract
+selection:
+  reason: controlled case for rejecting invalid harness artifacts before attributing the panic to library code
+  negative_case: true
+  manually_labeled: true
+notes:
+  - the invalid tests panic before the raw slice dangerous site is reached

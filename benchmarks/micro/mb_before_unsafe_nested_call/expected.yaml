@@ -1,0 +1,33 @@
+case_id: mb_before_unsafe_nested_call
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_before_unsafe_nested_call
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: BlockingPanic
+  relation: BeforeUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target passes raw bytes into safe API; panic is an API contract guard before nested unsafe helper
+selection:
+  reason: stress case for panic in caller before a nested callee contains the dangerous site
+  negative_case: true
+  manually_labeled: true
+notes:
+  - expected relation should be BeforeUnsafe on empty or zero inputs, despite static dangerous site in inner helper

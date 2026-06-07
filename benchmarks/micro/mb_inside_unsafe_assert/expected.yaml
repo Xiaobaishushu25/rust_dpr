@@ -1,0 +1,34 @@
+case_id: mb_inside_unsafe_assert
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_inside_unsafe_assert
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: InsideUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - UnsafeRust
+  - RawPointer
+panic_kinds:
+  - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: safe API receives arbitrary bytes; empty input triggers an in-region panic
+selection:
+  reason: differentiates InsideUnsafe from AfterUnsafe by placing assertion inside the unsafe region
+  negative_case: false
+  manually_labeled: true
+notes:
+  - expected trace order is Hit(S00001) then Panic from inside the same unsafe block

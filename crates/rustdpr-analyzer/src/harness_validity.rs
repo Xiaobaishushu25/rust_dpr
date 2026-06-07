@@ -187,9 +187,7 @@ impl HarnessVisitor {
     fn is_manual_trace_hit(expr: &ExprPath) -> bool {
         let callee = Self::path_to_string(expr).to_lowercase();
 
-        callee == "hit"
-            || callee == "rustdpr_trace::hit"
-            || callee.ends_with("::hit")
+        callee == "hit" || callee == "rustdpr_trace::hit" || callee.ends_with("::hit")
     }
 
     fn is_target_unsafe_or_unchecked_call(expr: &ExprPath) -> bool {
@@ -204,8 +202,7 @@ impl HarnessVisitor {
     }
 
     fn is_null_pointer_constructor(expr: &ExprPath) -> bool {
-        Self::path_last_segment_is(expr, "null")
-            || Self::path_last_segment_is(expr, "null_mut")
+        Self::path_last_segment_is(expr, "null") || Self::path_last_segment_is(expr, "null_mut")
     }
 
     fn is_nonnull_new_unchecked(expr: &ExprPath) -> bool {
@@ -249,7 +246,12 @@ impl HarnessVisitor {
         is_ptr_namespace
             && matches!(
                 last.as_str(),
-                "read" | "write" | "copy_nonoverlapping" | "copy" | "copy_to" | "copy_to_nonoverlapping"
+                "read"
+                    | "write"
+                    | "copy_nonoverlapping"
+                    | "copy"
+                    | "copy_to"
+                    | "copy_to_nonoverlapping"
             )
     }
 

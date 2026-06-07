@@ -1,0 +1,32 @@
+case_id: ob_asan_oob_write_control
+suite: oracle
+category: oracle-positive-control
+
+source:
+  crate_name: ob_asan_oob_write_control
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: AfterUnsafe
+  oracle_verdict: AddressSanitizerOutOfBounds
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: harness calls a safe public function that internally performs an out-of-bounds write when triggered
+selection:
+  reason: ASan positive control for out-of-bounds write oracle verdict parsing and replay stability
+  negative_case: false
+  manually_labeled: true
+notes:
+  - The intentionally crashing unit test is ignored so cargo test remains usable; oracle runs should execute the trigger path.

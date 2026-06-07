@@ -1,0 +1,33 @@
+case_id: mb_before_unsafe_guarded_by_length
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_before_unsafe_guarded_by_length
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: BlockingPanic
+  relation: BeforeUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - PanicMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target passes bytes to a safe API; short inputs trigger the documented length guard before the unsafe parser path
+selection:
+  reason: controlled BeforeUnsafe case where static unsafe is in the same API but dynamic panic blocks reachability
+  negative_case: true
+  manually_labeled: true
+notes:
+  - Used to prevent same-function or same-API static baselines from over-classifying guard panics as dangerous.

@@ -3,7 +3,9 @@ use rustdpr_trace::{dpr_function, dpr_hit, install_panic_hook};
 pub fn decode_packet(input: &[u8]) -> usize {
     install_panic_hook();
     let _guard = dpr_function!("crate::decode_packet");
-    if input.len() < 2 { return 0; }
+    if input.len() < 2 {
+        return 0;
+    }
     let len = input[0] as usize;
     let mut out: Vec<u8> = Vec::with_capacity(len.min(32));
     unsafe {

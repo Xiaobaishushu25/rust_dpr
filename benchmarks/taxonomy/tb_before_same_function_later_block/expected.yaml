@@ -1,0 +1,33 @@
+case_id: tb_before_same_function_later_block
+suite: taxonomy
+category: taxonomy-before-unsafe
+
+source:
+  crate_name: tb_before_same_function_later_block
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: BlockingPanic
+  relation: BeforeUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - PanicMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: safe API; panic is a guard in the same function before the dangerous block
+selection:
+  reason: hard taxonomy case where static function-level matching may incorrectly associate panic with the later unsafe block
+  negative_case: true
+  manually_labeled: true
+notes:
+  - same enclosing function but different dynamic order

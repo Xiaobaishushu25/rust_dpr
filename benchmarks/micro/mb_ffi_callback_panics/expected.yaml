@@ -1,0 +1,35 @@
+case_id: mb_ffi_callback_panics
+suite: micro
+category: controlled-ffi
+
+source:
+  crate_name: mb_ffi_callback_panics
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: FfiBoundary
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - Ffi
+  - PanicBoundary
+panic_kinds:
+  - FfiUnwindPanicCandidate
+  - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: safe wrapper receives arbitrary bytes; panic occurs through an extern C-unwind callback boundary
+selection:
+  reason: adds a controlled FfiBoundary relation without depending on a native C library
+  negative_case: false
+  manually_labeled: true
+notes:
+  - intended to stress FFI boundary labeling, not ASan/Miri confirmation

@@ -1,0 +1,33 @@
+case_id: tb_static_unsafe_unreached
+suite: taxonomy
+category: taxonomy-none-observed
+
+source:
+  crate_name: tb_static_unsafe_unreached
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: ContractPanic
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - ExpectLike
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: safe API; panic is not related to the dead unsafe helper
+selection:
+  reason: taxonomy hard negative for static-only baseline and DPG-only false positives
+  negative_case: true
+  manually_labeled: true
+notes:
+  - static analysis should find a dangerous site, but trace should not reach it

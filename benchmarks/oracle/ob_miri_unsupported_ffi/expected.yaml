@@ -1,0 +1,32 @@
+case_id: ob_miri_unsupported_ffi
+suite: oracle
+category: oracle-unsupported-control
+
+source:
+  crate_name: ob_miri_unsupported_ffi
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: SuspiciousCandidate
+  relation: UnsupportedOracle
+  oracle_verdict: MiriUnsupported
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - Ffi
+panic_kinds: []
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: safe wrapper chooses a fixed C string; unsupported status comes from oracle environment, not invalid harness input
+selection:
+  reason: controlled Miri unsupported case for FFI boundary oracle accounting
+  negative_case: true
+  manually_labeled: true
+notes:
+  - Miri should report unsupported foreign function rather than UB; ASan should normally have no finding

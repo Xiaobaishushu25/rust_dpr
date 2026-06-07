@@ -1,0 +1,32 @@
+case_id: tb_harness_aliasing_raw_mut
+suite: taxonomy
+category: taxonomy
+
+source:
+  crate_name: tb_harness_aliasing_raw_mut
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: HarnessMisuse
+  relation: HarnessMisuse
+  oracle_verdict: Unknown
+  harness_status: LikelyMisuse
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target calls the unsafe API directly and creates two raw mutable aliases to the same local value
+selection:
+  reason: taxonomy stress case for classifying harness-origin raw-pointer aliasing artifacts as misuse rather than library bugs
+  negative_case: true
+  manually_labeled: true
+notes:
+  - Complements null pointer and invalid from_raw_parts harness misuse cases.

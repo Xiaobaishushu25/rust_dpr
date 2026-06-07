@@ -19,6 +19,8 @@ mod tests {
     fn harness_misuse_null() {
         init_trace("artifacts/trace.jsonl").unwrap();
         let ptr = std::ptr::null();
-        unsafe { let _ = deref_non_null(ptr); }
+        unsafe {
+            let _ = deref_non_null(ptr);
+        }
     }
 }

@@ -5,3 +5,5 @@ cases:
   - rsec_tracing_into_inner_forget
   - rsec_direct_ring_buffer_set_len
   - rsec_borrowck_any_as_u8_slice
+  - rsec_slice_deque_2021_0047_vuln
+  - rsec_slice_deque_2021_0047_fixed_control

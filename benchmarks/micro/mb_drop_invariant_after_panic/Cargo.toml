@@ -1,0 +1,7 @@
+[package]
+name = "mb_drop_invariant_after_panic"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

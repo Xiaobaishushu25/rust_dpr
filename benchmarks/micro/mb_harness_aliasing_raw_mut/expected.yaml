@@ -1,0 +1,32 @@
+case_id: mb_harness_aliasing_raw_mut
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_harness_aliasing_raw_mut
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: HarnessMisuse
+  relation: HarnessMisuse
+  oracle_verdict: Unknown
+  harness_status: LikelyMisuse
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target calls the unsafe raw-pointer API directly and fabricates aliased mutable raw pointers from the same local byte
+selection:
+  reason: harness misuse case for direct unsafe precondition violation beyond null pointer and invalid length/capacity
+  negative_case: true
+  manually_labeled: true
+notes:
+  - The library exposes a safe wrapper; the fuzz harness intentionally bypasses it and violates the unsafe API contract.

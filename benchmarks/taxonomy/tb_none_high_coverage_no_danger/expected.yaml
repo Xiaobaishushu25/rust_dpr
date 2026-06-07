@@ -1,0 +1,33 @@
+case_id: tb_none_high_coverage_no_danger
+suite: taxonomy
+category: relation-taxonomy
+
+source:
+  crate_name: tb_none_high_coverage_no_danger
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: ContractPanic
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - ExplicitPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target exercises the safe parser path; panic is an ordinary contract panic unrelated to dead unsafe helper
+selection:
+  reason: high ordinary-code activity with static dangerous site present but dynamically unreachable
+  negative_case: true
+  manually_labeled: true
+notes:
+  - This case supports the coverage-vs-dangerous-path argument without relying on line coverage as a primary metric for taxonomy.

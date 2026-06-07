@@ -14,19 +14,31 @@ pub fn render_markdown_report(
     md.push_str("# RustDPR Report\n\n");
 
     md.push_str("## Metadata\n\n");
-    md.push_str(&format!("- Schema version: `{}`\n", classification.schema_version));
+    md.push_str(&format!(
+        "- Schema version: `{}`\n",
+        classification.schema_version
+    ));
     md.push_str(&format!(
         "- Suite: `{}`\n",
-        classification.suite.clone().unwrap_or_else(|| "unknown".into())
+        classification
+            .suite
+            .clone()
+            .unwrap_or_else(|| "unknown".into())
     ));
     md.push_str(&format!(
         "- Case: `{}`\n\n",
-        classification.case_name.clone().unwrap_or_else(|| "unknown".into())
+        classification
+            .case_name
+            .clone()
+            .unwrap_or_else(|| "unknown".into())
     ));
 
     md.push_str("## Crate Metadata\n\n");
     md.push_str(&format!("- Crate root: `{}`\n", site_map.crate_root));
-    md.push_str(&format!("- Dangerous sites: {}\n", site_map.dangerous_sites.len()));
+    md.push_str(&format!(
+        "- Dangerous sites: {}\n",
+        site_map.dangerous_sites.len()
+    ));
     md.push_str(&format!("- Panic sites: {}\n", site_map.panic_sites.len()));
     md.push_str(&format!("- DPG nodes: {}\n", dpg.nodes.len()));
     md.push_str(&format!("- DPG edges: {}\n\n", dpg.edges.len()));
@@ -74,9 +86,15 @@ pub fn render_markdown_report(
     }
 
     md.push_str("## Classification\n\n");
-    md.push_str(&format!("- Primary label: `{:?}`\n", classification.primary_label));
+    md.push_str(&format!(
+        "- Primary label: `{:?}`\n",
+        classification.primary_label
+    ));
     md.push_str(&format!("- Relation: `{:?}`\n", classification.relation));
-    md.push_str(&format!("- Confidence: `{:.2}`\n", classification.confidence));
+    md.push_str(&format!(
+        "- Confidence: `{:.2}`\n",
+        classification.confidence
+    ));
     md.push_str(&format!(
         "- Review required: `{}`\n",
         classification.review_required

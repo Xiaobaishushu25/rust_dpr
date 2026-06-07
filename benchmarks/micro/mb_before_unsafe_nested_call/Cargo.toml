@@ -1,0 +1,7 @@
+[package]
+name = "mb_before_unsafe_nested_call"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

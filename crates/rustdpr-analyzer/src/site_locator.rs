@@ -1,14 +1,18 @@
 use anyhow::{Context, Result};
 use rustdpr_core::{
     DangerousKind, DangerousSite, EvidenceStrength, FunctionCallEdge, FunctionIndex,
-    FunctionSummary, PanicKind, PanicSite, SiteMap, SpanInfo, RUSTDPR_SCHEMA_VERSION,
+    FunctionSummary, PanicKind, PanicSite, RUSTDPR_SCHEMA_VERSION, SiteMap, SpanInfo,
 };
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprCall, ExprIndex, ExprMacro, ExprMethodCall, ExprPath, ExprUnary, ExprUnsafe, File, ForeignItem, Item, ItemFn, ItemForeignMod, ItemImpl, ItemMod, PathArguments, Stmt, TraitItem, Type, UnOp, Visibility};
+use syn::{
+    Block, Expr, ExprCall, ExprIndex, ExprMacro, ExprMethodCall, ExprPath, ExprUnary, ExprUnsafe,
+    File, ForeignItem, Item, ItemFn, ItemForeignMod, ItemImpl, ItemMod, PathArguments, Stmt,
+    TraitItem, Type, UnOp, Visibility,
+};
 use walkdir::{DirEntry, WalkDir};
 
 pub fn analyze_crate(crate_root: &Path) -> Result<(SiteMap, FunctionIndex)> {
@@ -61,8 +65,14 @@ pub fn analyze_crate(crate_root: &Path) -> Result<(SiteMap, FunctionIndex)> {
 
 fn should_skip_dir(entry: &DirEntry) -> bool {
     let path = entry.path();
-    let name = path.file_name().and_then(|x| x.to_str()).unwrap_or_default();
-    matches!(name, "target" | ".git" | "artifacts" | "data" | "node_modules")
+    let name = path
+        .file_name()
+        .and_then(|x| x.to_str())
+        .unwrap_or_default();
+    matches!(
+        name,
+        "target" | ".git" | "artifacts" | "data" | "node_modules"
+    )
 }
 
 fn collect_rs_files(root: &Path) -> Result<Vec<PathBuf>> {
@@ -82,7 +92,11 @@ fn collect_rs_files(root: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn dedup_call_edges(edges: &mut Vec<FunctionCallEdge>) {
-    edges.sort_by(|a, b| a.caller.cmp(&b.caller).then_with(|| a.callee.cmp(&b.callee)));
+    edges.sort_by(|a, b| {
+        a.caller
+            .cmp(&b.caller)
+            .then_with(|| a.callee.cmp(&b.callee))
+    });
     edges.dedup_by(|a, b| a.caller == b.caller && a.callee == b.callee);
 }
 
@@ -224,9 +238,7 @@ impl<'a> SiteAndCallVisitor<'a> {
         evidence_strength: EvidenceStrength,
     ) {
         let obligation = match kind {
-            DangerousKind::UnsafeFn => {
-                Some("caller must uphold safety preconditions".to_string())
-            }
+            DangerousKind::UnsafeFn => Some("caller must uphold safety preconditions".to_string()),
             DangerousKind::UnsafeBlock => {
                 Some("unsafe block may bypass Rust safety guarantees".to_string())
             }
@@ -300,7 +312,9 @@ impl<'a> SiteAndCallVisitor<'a> {
             confidence: confidence.to_string(),
             category,
             evidence_strength,
-            obligation: Some("FFI declaration or boundary requires ABI-compatible behavior".to_string()),
+            obligation: Some(
+                "FFI declaration or boundary requires ABI-compatible behavior".to_string(),
+            ),
             macro_expanded: false,
             generic_context: None,
             ffi_abi: abi,
@@ -312,7 +326,8 @@ impl<'a> SiteAndCallVisitor<'a> {
             site.kind,
             DangerousKind::FfiUnwindBoundary | DangerousKind::FfiBoundary
         ) {
-            site.review_note = Some("check panic=abort/unwind behavior around this ABI".to_string());
+            site.review_note =
+                Some("check panic=abort/unwind behavior around this ABI".to_string());
         }
         self.dangerous_sites.push(site);
     }
@@ -560,24 +575,22 @@ impl<'a> SiteAndCallVisitor<'a> {
             "assert" | "assert_eq" | "assert_ne" => {
                 self.add_panic(stmt_macro, PanicKind::AssertMacro, "stmt-assert-macro")
             }
-            "debug_assert" | "debug_assert_eq" | "debug_assert_ne" => {
-                self.add_panic(stmt_macro, PanicKind::DebugAssertMacro, "stmt-debug-assert-macro")
-            }
+            "debug_assert" | "debug_assert_eq" | "debug_assert_ne" => self.add_panic(
+                stmt_macro,
+                PanicKind::DebugAssertMacro,
+                "stmt-debug-assert-macro",
+            ),
             "todo" => self.add_panic(stmt_macro, PanicKind::TodoMacro, "stmt-todo-macro"),
-            "unimplemented" => {
-                self.add_panic(
-                    stmt_macro,
-                    PanicKind::UnimplementedMacro,
-                    "stmt-unimplemented-macro",
-                )
-            }
-            "unreachable" => {
-                self.add_panic(
-                    stmt_macro,
-                    PanicKind::UnreachableMacro,
-                    "stmt-unreachable-macro",
-                )
-            }
+            "unimplemented" => self.add_panic(
+                stmt_macro,
+                PanicKind::UnimplementedMacro,
+                "stmt-unimplemented-macro",
+            ),
+            "unreachable" => self.add_panic(
+                stmt_macro,
+                PanicKind::UnreachableMacro,
+                "stmt-unreachable-macro",
+            ),
             "dpr_hit" => self.add_macro_dangerous(
                 stmt_macro,
                 DangerousKind::TargetApiMisuseCandidate,
@@ -611,12 +624,7 @@ impl<'a> SiteAndCallVisitor<'a> {
                 let method = m.method.to_string();
                 matches!(
                     method.as_str(),
-                    "as_ptr"
-                        | "as_mut_ptr"
-                        | "as_non_null_ptr"
-                        | "as_mut"
-                        | "as_ref"
-                        | "cast"
+                    "as_ptr" | "as_mut_ptr" | "as_non_null_ptr" | "as_mut" | "as_ref" | "cast"
                 )
             }
             Expr::Call(call) => {
@@ -730,13 +738,7 @@ impl<'ast> Visit<'ast> for SiteAndCallVisitor<'_> {
                 "unsafe-block-ffi-boundary"
             };
 
-            self.add_dangerous(
-                node,
-                kind,
-                rule,
-                "high",
-                EvidenceStrength::Strong,
-            );
+            self.add_dangerous(node, kind, rule, "high", EvidenceStrength::Strong);
         } else {
             self.add_dangerous(
                 node,
@@ -898,9 +900,7 @@ impl<'ast> Visit<'ast> for SiteAndCallVisitor<'_> {
             "unimplemented" => {
                 self.add_panic(node, PanicKind::UnimplementedMacro, "unimplemented-macro")
             }
-            "unreachable" => {
-                self.add_panic(node, PanicKind::UnreachableMacro, "unreachable-macro")
-            }
+            "unreachable" => self.add_panic(node, PanicKind::UnreachableMacro, "unreachable-macro"),
             "dpr_hit" => self.add_macro_dangerous(
                 node,
                 DangerousKind::TargetApiMisuseCandidate,
@@ -929,9 +929,11 @@ impl<'ast> Visit<'ast> for SiteAndCallVisitor<'_> {
                     self.add_panic(node, PanicKind::DebugAssertMacro, "item-debug-assert-macro")
                 }
                 "todo" => self.add_panic(node, PanicKind::TodoMacro, "item-todo-macro"),
-                "unimplemented" => {
-                    self.add_panic(node, PanicKind::UnimplementedMacro, "item-unimplemented-macro")
-                }
+                "unimplemented" => self.add_panic(
+                    node,
+                    PanicKind::UnimplementedMacro,
+                    "item-unimplemented-macro",
+                ),
                 "unreachable" => {
                     self.add_panic(node, PanicKind::UnreachableMacro, "item-unreachable-macro")
                 }
@@ -1159,10 +1161,7 @@ fn path_to_string(expr: &ExprPath) -> String {
 }
 
 fn last_path_segment(expr: &ExprPath) -> Option<String> {
-    expr.path
-        .segments
-        .last()
-        .map(|s| s.ident.to_string())
+    expr.path.segments.last().map(|s| s.ident.to_string())
 }
 
 #[allow(dead_code)]

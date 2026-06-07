@@ -22,6 +22,8 @@ pub enum RelationLabel {
     InsideUnsafe,
     AdjacentToUnsafe,
     FfiBoundary,
+    HarnessMisuse,
+    UnsupportedOracle,
     #[default]
     Unknown,
 }

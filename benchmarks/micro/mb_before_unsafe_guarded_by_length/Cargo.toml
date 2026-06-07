@@ -1,0 +1,7 @@
+[package]
+name = "mb_before_unsafe_guarded_by_length"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

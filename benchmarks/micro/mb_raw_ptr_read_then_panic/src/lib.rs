@@ -8,7 +8,9 @@ pub fn read_then_check(input: &[u8], reject: bool) -> u8 {
     let _guard = dpr_function!(FN_READ_THEN_CHECK);
 
     let fallback = 0u8;
-    let ptr = input.first().map_or(&fallback as *const u8, |b| b as *const u8);
+    let ptr = input
+        .first()
+        .map_or(&fallback as *const u8, |b| b as *const u8);
     let value = unsafe {
         dpr_hit!(SITE_RAW_READ);
         ptr.read()

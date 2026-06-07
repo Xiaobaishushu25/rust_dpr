@@ -1,0 +1,33 @@
+case_id: tb_ffi_extern_c_unwind
+suite: taxonomy
+category: relation-taxonomy
+
+source:
+  crate_name: tb_ffi_extern_c_unwind
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: FfiBoundary
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - Ffi
+panic_kinds:
+  - AssertMacro
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: harness supplies bytes to a safe wrapper that models a C-unwind callback boundary
+selection:
+  reason: taxonomy support case for FfiBoundary independent of native C dependencies
+  negative_case: false
+  manually_labeled: true
+notes:
+  - If your classifier cannot distinguish FFI boundary from generic InsideUnsafe, count this as a known confusion.

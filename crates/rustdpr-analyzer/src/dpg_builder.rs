@@ -1,6 +1,6 @@
 use rustdpr_core::{
-    normalize_symbol, DangerousKind, DangerousPathGraph, DpgEdge, DpgEdgeKind, DpgNode,
-    DpgNodeKind, FunctionIndex, SiteMap,
+    DangerousKind, DangerousPathGraph, DpgEdge, DpgEdgeKind, DpgNode, DpgNodeKind, FunctionIndex,
+    SiteMap, normalize_symbol,
 };
 use std::collections::BTreeSet;
 
@@ -90,7 +90,9 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
     for ds in &site_map.dangerous_sites {
         let node_kind = if matches!(
             ds.kind,
-            DangerousKind::FfiBoundary | DangerousKind::FfiUnwindBoundary | DangerousKind::FfiDeclaration
+            DangerousKind::FfiBoundary
+                | DangerousKind::FfiUnwindBoundary
+                | DangerousKind::FfiDeclaration
         ) {
             DpgNodeKind::FfiBoundary
         } else {
@@ -158,15 +160,39 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
             "static",
         );
 
-        for ds in site_map.dangerous_sites.iter().filter(|s| s.enclosing_fn == ps.enclosing_fn) {
+        for ds in site_map
+            .dangerous_sites
+            .iter()
+            .filter(|s| s.enclosing_fn == ps.enclosing_fn)
+        {
             let (from, to, kind) = if ps.span.line_end < ds.span.line_start {
-                (ps.panic_id.clone(), ds.site_id.clone(), DpgEdgeKind::BlockedByPanic)
+                (
+                    ps.panic_id.clone(),
+                    ds.site_id.clone(),
+                    DpgEdgeKind::BlockedByPanic,
+                )
             } else if ds.span.line_end < ps.span.line_start {
-                (ds.site_id.clone(), ps.panic_id.clone(), DpgEdgeKind::ObservedAfter)
+                (
+                    ds.site_id.clone(),
+                    ps.panic_id.clone(),
+                    DpgEdgeKind::ObservedAfter,
+                )
             } else {
-                (ds.site_id.clone(), ps.panic_id.clone(), DpgEdgeKind::InsideSameUnsafeRegion)
+                (
+                    ds.site_id.clone(),
+                    ps.panic_id.clone(),
+                    DpgEdgeKind::InsideSameUnsafeRegion,
+                )
             };
-            insert_edge(&mut edges, &mut seen_edges, from, to, kind, 0.8, "static-locality");
+            insert_edge(
+                &mut edges,
+                &mut seen_edges,
+                from,
+                to,
+                kind,
+                0.8,
+                "static-locality",
+            );
         }
     }
 

@@ -37,6 +37,57 @@
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_harness_misuse_invalid_input/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_inside_unsafe_panic/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_panic_after_drop_invariant/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_global_oob_write/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_invalid_bool_miri/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_misaligned_read_miri/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_null_deref_miri/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_stack_oob_read/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_uninit_bool_miri/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/realworld/rw_arena_nonnull_handle/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/realworld/rw_bytes_frame_parser/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/realworld/rw_ffi_cstr_boundary/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/realworld/rw_image_stride_copy/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/realworld/rw_packet_set_len_decoder/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/realworld/rw_smoke_raw_slice_view/lib/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/realworld/rw_smoke_raw_slice_view/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_borrowck_any_as_u8_slice/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_direct_ring_buffer_set_len/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_slice_deque_drain_filter_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_toodee_draincol_copy_size/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_tracing_into_inner_forget/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_before_unsafe_guarded_by_length/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_before_unsafe_nested_call/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_before_unsafe_same_fn_branch/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_drop_invariant_after_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_ffi_c_unwind_callback_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_ffi_callback_panics/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_ffi_extern_c_unwind_boundary/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_harness_aliasing_raw_mut/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_harness_invalid_len_capacity/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_harness_null_ptr_direct/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_inside_unsafe_assert/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_inside_unsafe_index/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_inside_unsafe_unwrap/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_maybeuninit_assume_init_after_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_none_static_unsafe_unreached/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_asan_no_finding_control/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_asan_oob_write_control/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_miri_no_finding_control/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_miri_unsupported_ffi/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_slice_deque_2021_0047_fixed_control/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_slice_deque_2021_0047_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_after_set_len_then_panic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_before_nested_callee/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_before_same_function_later_block/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_ffi_callback_panics/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_ffi_extern_c_unwind/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_harness_aliasing_raw_mut/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_harness_bad_from_raw_parts/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_harness_direct_unsafe_precondition/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_inside_unsafe_assert_macro/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_inside_unsafe_unwrap/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_none_high_coverage_no_danger/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_static_unsafe_unreached/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_before_unsafe/fuzz/target" />
@@ -61,6 +112,7 @@
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_before_dangerous_site_blocking/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_contract_panic_no_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_panic_before_unsafe/fuzz/target" />
+      <excludeFolder url="file://$MODULE_DIR$/benchmarks/realworld/rw_smoke_raw_slice_view/fuzz/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

@@ -15,3 +15,18 @@ cases:
   - mb_slice_from_raw_parts
   - mb_unchecked_index
   - mb_maybeuninit_read
+  - mb_before_unsafe_nested_call
+  - mb_inside_unsafe_assert
+  - mb_none_static_unsafe_unreached
+  - mb_harness_invalid_len_capacity
+  - mb_ffi_callback_panics
+  - mb_before_unsafe_same_fn_branch
+  - mb_inside_unsafe_unwrap
+  - mb_ffi_extern_c_unwind_boundary
+  - mb_harness_null_ptr_direct
+  - mb_drop_invariant_after_panic
+  - mb_before_unsafe_guarded_by_length
+  - mb_inside_unsafe_index
+  - mb_ffi_c_unwind_callback_panic
+  - mb_harness_aliasing_raw_mut
+  - mb_maybeuninit_assume_init_after_panic

@@ -2,8 +2,11 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use rustdpr_analyzer::{analyze_crate, analyze_harness_validity, build_dpg, collect_metadata};
 use rustdpr_classifier::classify_execution_with_options;
-use rustdpr_core::{ClassificationOptions, DangerousPathGraph, HarnessValidityReport, OracleVerdict, SiteMap, TraceLog};
-use rustdpr_oracle::{parse_asan_log, parse_miri_log, OracleReport};
+use rustdpr_core::{
+    ClassificationOptions, DangerousPathGraph, HarnessValidityReport, OracleVerdict, SiteMap,
+    TraceLog,
+};
+use rustdpr_oracle::{OracleReport, parse_asan_log, parse_miri_log};
 use rustdpr_report::render_markdown_report;
 use serde::de::DeserializeOwned;
 use std::fs;
@@ -168,7 +171,14 @@ fn main() -> Result<()> {
                 weighted_sites: true,
             };
 
-            let result = classify_execution_with_options(&site_map, &trace, &dpg, harness.as_ref(), oracle, options);
+            let result = classify_execution_with_options(
+                &site_map,
+                &trace,
+                &dpg,
+                harness.as_ref(),
+                oracle,
+                options,
+            );
             write_json(&out, &result)?;
         }
         Commands::Report {
@@ -188,7 +198,8 @@ fn main() -> Result<()> {
                 None => None,
             };
 
-            let md = render_markdown_report(&site_map, &dpg, &trace, harness.as_ref(), &classification);
+            let md =
+                render_markdown_report(&site_map, &dpg, &trace, harness.as_ref(), &classification);
             if let Some(parent) = out.parent() {
                 fs::create_dir_all(parent)
                     .with_context(|| format!("failed to create parent dir {}", parent.display()))?;
@@ -233,15 +244,15 @@ fn oracle_verdict_priority(verdict: &OracleVerdict) -> u8 {
         | OracleVerdict::AddressSanitizerInvalidFree
         | OracleVerdict::AddressSanitizerLeak => 100,
         OracleVerdict::MiriUndefinedBehavior => 90,
-        OracleVerdict::OracleTimeout => 20,
+        OracleVerdict::OracleTimeout | OracleVerdict::OracleBuildFailure => 20,
         OracleVerdict::MiriUnsupported => 10,
-        OracleVerdict::Unknown => 0,
+        OracleVerdict::NoOracleFinding | OracleVerdict::Unknown => 0,
     }
 }
 
 fn read_json<T: DeserializeOwned>(path: &PathBuf) -> Result<T> {
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     let parsed = serde_json::from_str(&content)
         .with_context(|| format!("failed to parse json {}", path.display()))?;
     Ok(parsed)

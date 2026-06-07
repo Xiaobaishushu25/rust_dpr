@@ -1,0 +1,34 @@
+case_id: mb_inside_unsafe_index
+suite: micro
+category: controlled
+
+source:
+  crate_name: mb_inside_unsafe_index
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: InsideUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+  - Indexing
+panic_kinds:
+  - IndexPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz target passes bytes to a safe API; the panic is caused by library indexing inside an unsafe region
+selection:
+  reason: adds an InsideUnsafe case whose panic source is indexing rather than an explicit panic macro or unwrap
+  negative_case: false
+  manually_labeled: true
+notes:
+  - Helps test whether the relation classifier relies on trace structure instead of panic-message strings.

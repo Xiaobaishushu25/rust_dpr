@@ -1,0 +1,32 @@
+case_id: ob_miri_no_finding_control
+suite: oracle
+category: oracle-negative-control
+
+source:
+  crate_name: ob_miri_no_finding_control
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: DangerousPathReached
+  relation: AfterUnsafe
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds: []
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: harness passes bytes into a safe wrapper; raw pointer read is valid and should not trigger ASan/Miri
+selection:
+  reason: negative oracle control demonstrating that dangerous-site reachability is not itself an oracle-confirmed bug
+  negative_case: true
+  manually_labeled: true
+notes:
+  - Expected verdict is NoOracleFinding for both ASan and Miri under normal settings.

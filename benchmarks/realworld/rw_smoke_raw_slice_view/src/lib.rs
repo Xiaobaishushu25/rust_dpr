@@ -8,7 +8,7 @@ pub fn parse_packet(input: &[u8]) -> usize {
     let _guard = dpr_function!(FN_PARSE_PACKET);
 
     if input.len() < 2 {
-       return 0;
+        return 0;
     }
 
     let len = input[0] as usize;

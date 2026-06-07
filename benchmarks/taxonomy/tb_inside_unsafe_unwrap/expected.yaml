@@ -1,0 +1,33 @@
+case_id: tb_inside_unsafe_unwrap
+suite: taxonomy
+category: relation-taxonomy
+
+source:
+  crate_name: tb_inside_unsafe_unwrap
+  version: local
+  advisory: null
+  fixed_version: null
+  url: null
+
+ground_truth:
+  primary_label: InsideUnsafePanic
+  relation: InsideUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+panic_kinds:
+  - Unwrap
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: harness calls a safe API; empty input triggers unwrap after entering unsafe region
+selection:
+  reason: relation taxonomy support case for InsideUnsafe triggered by unwrap rather than explicit panic
+  negative_case: false
+  manually_labeled: true
+notes:
+  - Expected to distinguish InsideUnsafe from AfterUnsafe despite both seeing a hit before panic.
