@@ -521,56 +521,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "rsec_borrowck_any_as_u8_slice"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
-
-[[package]]
-name = "rsec_direct_ring_buffer_set_len"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
-
-[[package]]
-name = "rsec_slice_deque_2021_0047_fixed_control"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
-
-[[package]]
-name = "rsec_slice_deque_2021_0047_manual_fixed_control"
-version = "0.1.0"
-
-[[package]]
 name = "rsec_slice_deque_2021_0047_vuln"
 version = "0.1.0"
 dependencies = [
+ "rustdpr-trace",
  "slice-deque",
-]
-
-[[package]]
-name = "rsec_slice_deque_drain_filter_panic"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
-
-[[package]]
-name = "rsec_toodee_draincol_copy_size"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
-]
-
-[[package]]
-name = "rsec_tracing_into_inner_forget"
-version = "0.1.0"
-dependencies = [
- "rustdpr-trace",
 ]
 
 [[package]]

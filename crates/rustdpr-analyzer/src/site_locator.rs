@@ -738,7 +738,14 @@ impl<'ast> Visit<'ast> for SiteAndCallVisitor<'_> {
                 "unsafe-block-ffi-boundary"
             };
 
-            self.add_dangerous(node, kind, rule, "high", EvidenceStrength::Strong);
+            self.add_dangerous_with_abi(
+                node,
+                kind,
+                rule,
+                "high",
+                EvidenceStrength::Strong,
+                ffi_summary.abi.clone(),
+            );
         } else {
             self.add_dangerous(
                 node,
@@ -968,6 +975,7 @@ struct AbiFunctionInfo {
 struct UnsafeBlockFfiSummary {
     calls_abi_function: bool,
     may_unwind_or_panic: bool,
+    abi: Option<String>,
 }
 
 fn collect_abi_functions(ast: &File) -> HashMap<String, AbiFunctionInfo> {
@@ -1124,10 +1132,11 @@ impl<'a, 'ast> Visit<'ast> for UnsafeBlockFfiScanner<'a> {
 
             if let Some(info) = self.abi_functions.get(&last) {
                 self.summary.calls_abi_function = true;
+                self.summary.abi.get_or_insert_with(|| info.abi.clone());
 
                 let abi_lower = info.abi.to_lowercase();
 
-                if info.may_panic || abi_lower.contains("unwind") || abi_lower == "c" {
+                if info.may_panic || abi_lower.contains("unwind") {
                     self.summary.may_unwind_or_panic = true;
                 }
             }
@@ -1154,9 +1163,10 @@ impl<'a, 'ast> Visit<'ast> for UnsafeBlockFfiScanner<'a> {
 
         if let Some(info) = self.abi_functions.get(&last) {
             self.summary.calls_abi_function = true;
+            self.summary.abi.get_or_insert_with(|| info.abi.clone());
 
             let abi_lower = info.abi.to_lowercase();
-            if info.may_panic || abi_lower.contains("unwind") || abi_lower == "c" {
+            if info.may_panic || abi_lower.contains("unwind") {
                 self.summary.may_unwind_or_panic = true;
             }
         }

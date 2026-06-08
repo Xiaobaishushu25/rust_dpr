@@ -6,3 +6,4 @@ publish = false
 
 [dependencies]
 slice-deque = "=0.3.0"
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

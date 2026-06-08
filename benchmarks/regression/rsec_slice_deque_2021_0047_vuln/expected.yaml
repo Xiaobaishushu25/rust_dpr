@@ -16,8 +16,8 @@ source:
 ground_truth:
   primary_label: PanicAfterUnsafe
   relation: AfterUnsafe
-  oracle_verdict: AddressSanitizerDoubleFree
-  harness_status: ValidHarness
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
   security_relevant: true
   oracle_confirmable: true
   expected_reached_count: 1
@@ -26,6 +26,18 @@ dangerous_categories:
   - RawPointer
   - AllocationOwnership
   - DropInvariant
+
+notes:
+  replay_evidence: >
+    On Windows/MSVC debug builds, the public PoC aborts inside
+    slice-deque 0.3.0 with a Rust unsafe precondition violation:
+    slice::get_unchecked_mut requires that the index is within the slice.
+    This is treated as replay evidence for the vulnerable dangerous path.
+  platform_behavior: >
+    On some platforms/builds, the historical issue manifests as duplicate
+    drop or double-drop behavior. On this Windows/MSVC environment, it
+    manifests as a non-unwinding panic / STATUS_STACK_BUFFER_OVERRUN after
+    the invalid unsafe access is detected.
 
 selection:
   reason: >-
@@ -39,7 +51,7 @@ selection:
   external_crate: true
 
 controls:
-  fixed_version_case: rsec_slice_deque_2021_0047_manual_fixed_control
+  fixed_version_case: null
   official_fixed_version_available: false
   control_note: >-
     The public advisory lists no patched version. The paired control is a

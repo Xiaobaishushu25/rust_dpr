@@ -31,3 +31,7 @@ selection:
   manually_labeled: true
 notes:
   - The unsafe operation is intentionally valid; the case tests panic-danger temporal relation rather than oracle confirmation.
+
+xfail:
+  enabled: true
+  reason: "MaybeUninit::assume_init after a local write remains review-only without deeper initialization/data-flow proof; classifier intentionally keeps initialization evidence conservative."

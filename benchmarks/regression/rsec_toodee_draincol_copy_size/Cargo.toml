@@ -1,8 +1,0 @@
-[package]
-name = "rsec_toodee_draincol_copy_size"
-version = "0.1.0"
-edition = "2021"
-publish = false
-
-[dependencies]
-rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

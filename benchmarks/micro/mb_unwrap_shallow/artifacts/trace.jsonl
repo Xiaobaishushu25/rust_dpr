@@ -1,5 +1,5 @@
-{"EnterFunction":{"function":"crate::parse","ts_millis":1779806515210,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
-{"EnterFunction":{"function":"crate::parse","ts_millis":1779806515210,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
-{"Panic":{"message":"called `Option::unwrap()` on a `None` value","file":"benchmarks\\micro\\mb_unwrap_shallow\\src\\lib.rs","line":8,"ts_millis":1779806515210,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
-{"ExitFunction":{"function":"crate::parse","ts_millis":1779806515210,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
-{"ExitFunction":{"function":"crate::parse","ts_millis":1779806515210,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
+{"EnterFunction":{"function":"crate::parse","ts_millis":1780295336081,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
+{"EnterFunction":{"function":"crate::parse","ts_millis":1780295336081,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
+{"ExitFunction":{"function":"crate::parse","ts_millis":1780295336081,"input_id":null,"run_id":null,"thread_id":"ThreadId(2)"}}
+{"Panic":{"message":"called `Option::unwrap()` on a `None` value","file":"benchmarks\\micro\\mb_unwrap_shallow\\src\\lib.rs","line":8,"ts_millis":1780295336081,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}
+{"ExitFunction":{"function":"crate::parse","ts_millis":1780295336081,"input_id":null,"run_id":null,"thread_id":"ThreadId(3)"}}

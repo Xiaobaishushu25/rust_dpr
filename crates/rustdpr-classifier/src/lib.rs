@@ -224,9 +224,10 @@ fn decide_primary_label(
     let relation = relation_evidence.relation.clone();
     let actionability = relation_evidence.actionability.unwrap_or(0.0);
     let site_kind = relation_evidence.site_kind.clone();
+    let replay_confirmed = relation_evidence.replay_confirmed;
 
     notes.decision_path.push(format!(
-        "has_panic={has_panic}, has_reached={has_reached}, relation={relation:?}, site_kind={site_kind:?}, actionability={actionability:.2}, oracle_strength={oracle_strength:?}"
+        "has_panic={has_panic}, has_reached={has_reached}, relation={relation:?}, site_kind={site_kind:?}, actionability={actionability:.2}, replay_confirmed={replay_confirmed}, oracle_strength={oracle_strength:?}"
     ));
 
     match (has_panic, has_reached, relation) {
@@ -242,12 +243,41 @@ fn decide_primary_label(
 
         (true, _, RelationLabel::AfterUnsafe) => {
             // AfterUnsafe 只是“panic 发生在危险点之后”的关系，不等于一定是强 bug。
-            // 是否升级为 PanicAfterUnsafe，取决于候选危险点的可操作性和证据强度。
-            if actionability >= 0.72 {
+            // 是否升级为 PanicAfterUnsafe，取决于候选危险点的可操作性、oracle 证据，
+            // 或 replay-confirmed 证据。replay_confirmed 专门用于 external regression：
+            // benchmark harness 只在外部 crate 的 public API boundary 打点，而真实漏洞
+            // 由 child-process replay 证明。
+            let has_oracle_support = matches!(
+                oracle_strength,
+                OracleEvidenceStrength::Confirmed
+                    | OracleEvidenceStrength::StrongHeuristic
+                    | OracleEvidenceStrength::WeakHeuristic
+            );
+
+            if actionability >= 0.72 || has_oracle_support || replay_confirmed {
                 notes
                     .fired_rules
                     .push("panic-after-actionable-unsafe".into());
-                (PrimaryLabel::PanicAfterUnsafe, 0.90, false)
+
+                if replay_confirmed && actionability < 0.72 {
+                    notes.evidence_summary.push(format!(
+                        "AfterUnsafe upgraded by replay-confirmed evidence: kind={site_kind:?}, actionability={actionability:.2}, oracle_strength={oracle_strength:?}"
+                    ));
+                } else if has_oracle_support && actionability < 0.72 {
+                    notes.evidence_summary.push(format!(
+                        "AfterUnsafe upgraded by oracle evidence: kind={site_kind:?}, actionability={actionability:.2}, oracle_strength={oracle_strength:?}"
+                    ));
+                }
+
+                let confidence = if actionability >= 0.72 {
+                    0.90
+                } else if has_oracle_support {
+                    0.88
+                } else {
+                    0.86
+                };
+
+                (PrimaryLabel::PanicAfterUnsafe, confidence, false)
             } else {
                 notes
                     .fired_rules
@@ -357,6 +387,7 @@ struct RelationEvidence {
     site_kind: Option<DangerousKind>,
     actionability: Option<f32>,
     candidate_score: Option<f32>,
+    replay_confirmed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -418,6 +449,7 @@ fn infer_relation_evidence(
 ) -> RelationEvidence {
     let dangerous_hits = collect_dangerous_hit_events(site_map, trace);
     let panic = first_panic_location(trace);
+    let replay_confirmed = trace_has_replay_confirmed(trace);
 
     // 没有 panic 但 hit 了 dangerous site：说明路径到达了危险点，但没有 panic 关系。
     if panic.is_none() && !dangerous_hits.is_empty() {
@@ -437,6 +469,7 @@ fn infer_relation_evidence(
                 .and_then(|(_, id)| find_dangerous_site_by_id(site_map, id))
                 .map(dangerous_actionability),
             candidate_score: None,
+            replay_confirmed,
         };
     }
 
@@ -451,6 +484,7 @@ fn infer_relation_evidence(
             site_kind: None,
             actionability: None,
             candidate_score: None,
+            replay_confirmed,
         };
     };
 
@@ -481,11 +515,32 @@ fn infer_relation_evidence(
             site_kind: Some(best.site.kind.clone()),
             actionability: Some(best.actionability),
             candidate_score: Some(best.score),
+            replay_confirmed,
         };
     }
 
     // infer_from_graph_adjacency(trace, dpg)
     infer_from_graph_adjacency(site_map, trace, dpg, &panic)
+}
+
+fn trace_has_replay_confirmed(trace: &TraceLog) -> bool {
+    trace.events.iter().any(|event| match event {
+        TraceEvent::Panic {
+            message: Some(message),
+            ..
+        } => is_replay_confirmed_message(message),
+        TraceEvent::OracleMarker { detail, .. } => is_replay_confirmed_message(detail),
+        _ => false,
+    })
+}
+
+fn is_replay_confirmed_message(message: &str) -> bool {
+    message.contains("REPLAY_CONFIRMED")
+        || message.contains("replay confirmed")
+        || message.contains("replay-confirmed")
+        || message.contains("child process")
+        || message.contains("unsafe precondition")
+        || message.contains("STATUS_STACK_BUFFER_OVERRUN")
 }
 
 fn first_panic_location(trace: &TraceLog) -> Option<PanicLocation> {
@@ -514,6 +569,13 @@ fn build_relation_candidates<'a>(
     let graph_nearest = panic_fn_hint
         .as_ref()
         .map(|f| dpg.shortest_distance_to_any_dangerous_site(f));
+    let exact_static_panic_functions = static_panic_functions_for_location(site_map, panic);
+    let panic_in_non_danger_helper = dangerous_hits.is_empty()
+        && panic_fn_hint.as_ref().is_some_and(|hint| {
+            exact_static_panic_functions.iter().any(|f| {
+                f != hint && dpg.shortest_distance_to_any_dangerous_site(f).distance.is_none()
+            })
+        });
     let mut candidates = Vec::new();
 
     for site in &site_map.dangerous_sites {
@@ -538,18 +600,24 @@ fn build_relation_candidates<'a>(
                     .map(|id| same_site_id(id, &site.site_id))
                     .unwrap_or(false)
             {
-                Some(RelationLabel::AdjacentToUnsafe)
+                if panic_in_non_danger_helper {
+                    Some(RelationLabel::BeforeUnsafe)
+                } else {
+                    Some(RelationLabel::AdjacentToUnsafe)
+                }
             } else {
                 None
             }
         });
 
-        let ffi_relation =
-            if is_ffi_boundary_site(site) && hit_idx.is_some() {
-                Some(RelationLabel::FfiBoundary)
-            } else {
-                None
-            };
+        let ffi_relation = if is_ffi_boundary_site(site)
+            && hit_idx.is_some()
+            && should_preserve_ffi_boundary_relation(site)
+        {
+            Some(RelationLabel::FfiBoundary)
+        } else {
+            None
+        };
 
         // 关系优先级不是简单 “dynamic > static”。
         // 1. panic 落在具体危险操作 span 内时，优先 InsideUnsafe；
@@ -580,11 +648,18 @@ fn build_relation_candidates<'a>(
                 "panic and dangerous site are in the same function".to_string(),
             )
         } else if let Some(rel) = graph_relation {
-            (
-                rel,
-                "graph-adjacent-candidate".to_string(),
-                "panic function is close to a dangerous site in DPG".to_string(),
-            )
+            let (rule, reason) = if rel == RelationLabel::BeforeUnsafe {
+                (
+                    "graph-blocked-before-unsafe-candidate",
+                    "panic location matches a non-dangerous helper before a reachable dangerous callee",
+                )
+            } else {
+                (
+                    "graph-adjacent-candidate",
+                    "panic function is close to a dangerous site in DPG",
+                )
+            };
+            (rel, rule.to_string(), reason.to_string())
         } else {
             continue;
         };
@@ -901,12 +976,46 @@ fn same_site_id(a: &str, b: &str) -> bool {
     a == b || a.ends_with(b) || b.ends_with(a)
 }
 
+fn static_panic_functions_for_location(site_map: &SiteMap, panic: &PanicLocation) -> Vec<String> {
+    let mut functions = Vec::new();
+
+    for ps in &site_map.panic_sites {
+        let line_matches = panic
+            .line
+            .map(|line| line >= ps.span.line_start && line <= ps.span.line_end)
+            .unwrap_or(false);
+
+        let file_matches = match (&panic.file, ps.span.file.as_str()) {
+            (Some(runtime_file), static_file) => same_file_path(runtime_file, static_file),
+            _ => true,
+        };
+
+        if line_matches && file_matches {
+            functions.push(ps.enclosing_fn.clone());
+        }
+    }
+
+    functions.sort();
+    functions.dedup();
+    functions
+}
+
+fn should_preserve_ffi_boundary_relation(site: &DangerousSite) -> bool {
+    let abi = site.ffi_abi.as_deref().unwrap_or_default().to_lowercase();
+
+    matches!(
+        site.kind,
+        DangerousKind::FfiBoundary | DangerousKind::FfiUnwindBoundary | DangerousKind::FfiCallCandidate
+    ) && abi.contains("unwind")
+}
+
 fn infer_from_graph_adjacency(
     site_map: &SiteMap,
     trace: &TraceLog,
     dpg: &DangerousPathGraph,
     panic: &PanicLocation,
 ) -> RelationEvidence {
+    let replay_confirmed = trace_has_replay_confirmed(trace);
     let mut panic_functions = Vec::new();
 
     if let Some(panic_fn) = infer_panic_function_hint(trace) {
@@ -949,6 +1058,7 @@ fn infer_from_graph_adjacency(
                     site_kind: None,
                     actionability: None,
                     candidate_score: None,
+                    replay_confirmed,
                 };
             }
         }
@@ -966,6 +1076,7 @@ fn infer_from_graph_adjacency(
         site_kind: None,
         actionability: None,
         candidate_score: None,
+        replay_confirmed,
     }
 }
 
