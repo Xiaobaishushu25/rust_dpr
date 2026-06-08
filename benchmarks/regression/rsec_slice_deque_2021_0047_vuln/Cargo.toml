@@ -1,8 +1,8 @@
 [package]
-        name = "rsec_slice_deque_2021_0047_vuln"
-        version = "0.1.0"
-        edition = "2021"
+name = "rsec_slice_deque_2021_0047_vuln"
+version = "0.1.0"
+edition = "2021"
 publish = false
 
-        [dependencies]
-        rustdpr-trace = { path = "../../../crates/rustdpr-trace" }
+[dependencies]
+slice-deque = "=0.3.0"

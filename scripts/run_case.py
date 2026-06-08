@@ -14,6 +14,7 @@ from common import (
     jsonl_trace_to_tracelog_json,
     read_json,
     resolve_case,
+    load_yaml,
     run_cmd,
     run_output_dir,
     validate_result_schema,
@@ -57,6 +58,13 @@ def main() -> int:
 
     suite, case_dir = resolve_case(args.case, args.suite)
     case_name = case_dir.name
+
+    expected_path = case_dir / "expected.yaml"
+    expected_cfg = load_yaml(expected_path) if expected_path.exists() else {}
+    execution_cfg = expected_cfg.get("execution") or {}
+    deterministic_test = execution_cfg.get("deterministic_test")
+    run_ignored = bool(execution_cfg.get("run_ignored", False))
+
     if args.out_dir:
         out_dir = Path(args.out_dir)
     else:
@@ -153,16 +161,28 @@ def main() -> int:
         trace_jsonl = out_dir / "trace.jsonl"
         if trace_jsonl.exists():
             trace_jsonl.unlink()
+
+        cargo_test_cmd = [
+            "cargo",
+            "test",
+            "--manifest-path",
+            str(case_dir / "Cargo.toml"),
+        ]
+
+        if deterministic_test:
+            cargo_test_cmd.append(deterministic_test)
+
+        cargo_test_cmd.extend([
+            "--",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+
+        if run_ignored:
+            cargo_test_cmd.append("--ignored")
+
         return_code = run_cmd(
-            [
-                "cargo",
-                "test",
-                "--manifest-path",
-                str(case_dir / "Cargo.toml"),
-                "--",
-                "--nocapture",
-                "--test-threads=1",
-            ],
+            cargo_test_cmd,
             cwd=ROOT_DIR,
             env={
                 "RUSTDPR_TRACE_PATH": str(trace_jsonl),

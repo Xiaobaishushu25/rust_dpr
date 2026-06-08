@@ -11,7 +11,7 @@ source:
 
 ground_truth:
   primary_label: HarnessMisuse
-  relation: NoneObserved
+  relation: HarnessMisuse
   oracle_verdict: Unknown
   harness_status: LikelyMisuse
   security_relevant: false

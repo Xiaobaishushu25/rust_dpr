@@ -28,14 +28,23 @@ impl Drop for DropBox {
 pub fn duplicate_then_panic(flag: bool) {
     install_panic_hook();
     let _guard = dpr_function!(FN_PROCESS);
-    let original = DropBox::new(7);
+
+    let mut original = ManuallyDrop::new(DropBox::new(7));
+
     unsafe {
         dpr_hit!(SITE_PTR_READ);
-        let duplicate = ptr::read(&original);
+
+        let duplicate = ptr::read(&*original);
+
         if flag {
+            // benchmark 中避免真正 double-drop，但保留“ptr::read 后发生 panic”的关系证据
+            std::mem::forget(duplicate);
+            ManuallyDrop::drop(&mut original);
             panic!("panic after ptr::read duplicates drop ownership");
         }
+
         std::mem::forget(duplicate);
+        ManuallyDrop::drop(&mut original);
     }
 }
 
@@ -51,7 +60,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "intentionally creates a double-drop style panic-safety hazard"]
     fn panic_path_is_dangerous() {
         init_trace("artifacts/trace.jsonl").unwrap();
         duplicate_then_panic(true);

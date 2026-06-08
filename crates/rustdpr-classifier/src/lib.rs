@@ -134,13 +134,18 @@ pub fn classify_execution_with_options(
         notes
             .decision_path
             .push(format!("harness_status={:?}", harness_status));
+        notes.counters.insert(
+            "raw_dangerous_hits_before_harness_filter".into(),
+            reached_dangerous_sites.len(),
+        );
         return ClassificationResult {
             schema_version: RUSTDPR_SCHEMA_VERSION.to_string(),
             case_name: trace.case_name.clone(),
             suite: trace.suite.clone(),
             primary_label: PrimaryLabel::HarnessMisuse,
             relation: RelationLabel::HarnessMisuse,
-            reached_dangerous_sites,
+            // reached_dangerous_sites,
+            reached_dangerous_sites: vec![],
             nearest_dangerous_site: None,
             distance_to_dangerous_site: None,
             oracle_verdict,
@@ -273,8 +278,8 @@ fn decide_primary_label(
         }
 
         (true, _, RelationLabel::FfiBoundary) => {
-            notes.fired_rules.push("ffi-boundary".into());
-            (PrimaryLabel::SuspiciousCandidate, 0.68, true)
+            notes.fired_rules.push("ffi-boundary-panic".into());
+            (PrimaryLabel::InsideUnsafePanic, 0.90, false)
         }
 
         (_, _, RelationLabel::HarnessMisuse) => {
@@ -539,11 +544,24 @@ fn build_relation_candidates<'a>(
             }
         });
 
+        let ffi_relation =
+            if is_ffi_boundary_site(site) && hit_idx.is_some() {
+                Some(RelationLabel::FfiBoundary)
+            } else {
+                None
+            };
+
         // 关系优先级不是简单 “dynamic > static”。
         // 1. panic 落在具体危险操作 span 内时，优先 InsideUnsafe；
         // 2. 如果 panic 落在 unsafe block 容器内，但同函数中存在更具体的危险操作，后续 scoring 会选择更具体的 operation candidate；
         // 3. dynamic hit 用于确认路径真的到达 unsafe 区域，但不强行覆盖源码结构关系。
-        let (relation, fired_rule, reason) = if let Some(rel) = structural_relation {
+        let (relation, fired_rule, reason) = if let Some(rel) = ffi_relation {
+            (
+                rel,
+                "ffi-boundary-candidate".to_string(),
+                "dangerous-site hit occurs at an FFI boundary before the panic".to_string(),
+            )
+        }else if let Some(rel) = structural_relation {
             (
                 rel,
                 "static-structural-candidate".to_string(),
@@ -883,43 +901,6 @@ fn same_site_id(a: &str, b: &str) -> bool {
     a == b || a.ends_with(b) || b.ends_with(a)
 }
 
-// fn infer_from_graph_adjacency(trace: &TraceLog, dpg: &DangerousPathGraph) -> RelationEvidence {
-//     if let Some(panic_fn) = infer_panic_function_hint(trace) {
-//         let distance = dpg.shortest_distance_to_any_dangerous_site(&panic_fn);
-//         if let Some(d) = distance.distance {
-//             if d <= 2 {
-//                 return RelationEvidence {
-//                     relation: RelationLabel::AdjacentToUnsafe,
-//                     nearest_dangerous_site: distance.nearest_site,
-//                     distance_to_dangerous_site: Some(d),
-//                     explanation: Some(format!(
-//                         "panic function {} is statically adjacent to dangerous site (distance={})",
-//                         panic_fn, d
-//                     )),
-//                     fired_rules: vec!["graph-adjacent".into()],
-//                     conflicting_evidence: vec![],
-//                     site_kind: None,
-//                     actionability: None,
-//                     candidate_score: None,
-//                 };
-//             }
-//         }
-//     }
-//
-//     RelationEvidence {
-//         relation: RelationLabel::NoneObserved,
-//         nearest_dangerous_site: None,
-//         distance_to_dangerous_site: None,
-//         explanation: Some(
-//             "panic observed but no dangerous-site evidence or unsafe adjacency was found".into(),
-//         ),
-//         fired_rules: vec!["fallback-none-observed".into()],
-//         conflicting_evidence: vec![],
-//         site_kind: None,
-//         actionability: None,
-//         candidate_score: None,
-//     }
-// }
 fn infer_from_graph_adjacency(
     site_map: &SiteMap,
     trace: &TraceLog,
@@ -1054,6 +1035,17 @@ fn line_gap_to_span(line: usize, site: &DangerousSite) -> usize {
     } else {
         0
     }
+}
+
+
+fn is_ffi_boundary_site(site: &DangerousSite) -> bool {
+    matches!(
+        site.kind,
+        DangerousKind::FfiBoundary
+            | DangerousKind::FfiUnwindBoundary
+            | DangerousKind::FfiCallCandidate
+            | DangerousKind::FfiDeclaration
+    )
 }
 
 pub fn classify_execution(

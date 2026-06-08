@@ -63,8 +63,23 @@ def compare_case(args, suite: str, case_dir: Path) -> dict:
         if not classification_path.exists():
             raise FileNotFoundError(f"classification.json not found: {classification_path}")
 
-        expected = normalize_expected_schema(load_yaml(expected_path) or {})
+#         expected = normalize_expected_schema(load_yaml(expected_path) or {})
+#         classification = read_json(classification_path)
+        raw_expected = load_yaml(expected_path) or {}
+
+        xfail_cfg = raw_expected.get("xfail") or {}
+        xfail_enabled = bool(xfail_cfg.get("enabled", False))
+        xfail_reason = str(xfail_cfg.get("reason") or "known limitation")
+
+        if xfail_enabled:
+            result["xfail"] = {
+                "enabled": True,
+                "reason": xfail_reason,
+            }
+
+        expected = normalize_expected_schema(raw_expected)
         classification = read_json(classification_path)
+
         validate_result_schema(
             classification,
             required=REQUIRED_CLASSIFICATION_FIELDS,
@@ -85,13 +100,30 @@ def compare_case(args, suite: str, case_dir: Path) -> dict:
             ("harness_status", expected["harness_status"], actual_harness),
             ("reached_count", expected["reached_count"], actual_reached_count),
         ]
-
         for field, exp, act in checks:
             if exp != act:
                 result["status"] = "FAIL"
                 result["mismatches"].append(f"{field}: expected={exp!r}, actual={act!r}")
 
+        if xfail_enabled:
+            if result["status"] == "FAIL":
+                result["status"] = "XFAIL"
+                result["mismatches"].insert(0, f"known limitation: {xfail_reason}")
+            elif result["status"] == "PASS":
+                result["status"] = "XPASS"
+                result["mismatches"].append(
+                    f"case is marked xfail but now matches expected: {xfail_reason}"
+                )
+
         result["expected"] = expected
+
+
+#         for field, exp, act in checks:
+#             if exp != act:
+#                 result["status"] = "FAIL"
+#                 result["mismatches"].append(f"{field}: expected={exp!r}, actual={act!r}")
+#
+#         result["expected"] = expected
     except Exception as exc:
         if result["status"] == "PASS":
             result["status"] = "ERROR"
@@ -121,9 +153,14 @@ def main() -> int:
         cases = discover_cases(args.suite)
 
     results = []
+#     pass_count = 0
+#     fail_count = 0
+#     error_count = 0
     pass_count = 0
     fail_count = 0
     error_count = 0
+    xfail_count = 0
+    xpass_count = 0
 
     for case_dir in cases:
         res = compare_case(args, args.suite, case_dir)
@@ -138,12 +175,48 @@ def main() -> int:
             print(f"[FAIL] {res['suite']}/{res['case']}")
             for m in res["mismatches"]:
                 print(f"  - {m}")
+        elif status == "XFAIL":
+            xfail_count += 1
+            print(f"[XFAIL] {res['suite']}/{res['case']}")
+            for m in res["mismatches"]:
+                print(f"  - {m}")
+        elif status == "XPASS":
+            xpass_count += 1
+            print(f"[XPASS] {res['suite']}/{res['case']}")
+            for m in res["mismatches"]:
+                print(f"  - {m}")
         else:
             error_count += 1
             print(f"[ERROR] {res['suite']}/{res['case']}")
             for m in res["mismatches"]:
                 print(f"  - {m}")
+#         if status == "PASS":
+#             pass_count += 1
+#             print(f"[PASS] {res['suite']}/{res['case']}")
+#         elif status == "FAIL":
+#             fail_count += 1
+#             print(f"[FAIL] {res['suite']}/{res['case']}")
+#             for m in res["mismatches"]:
+#                 print(f"  - {m}")
+#         else:
+#             error_count += 1
+#             print(f"[ERROR] {res['suite']}/{res['case']}")
+#             for m in res["mismatches"]:
+#                 print(f"  - {m}")
 
+#     summary = {
+#         "suite": args.suite,
+#         "tool": args.tool,
+#         "variant": args.variant,
+#         "mode": args.mode,
+#         "seed": args.seed,
+#         "run_index": args.run_index,
+#         "total": len(results),
+#         "pass": pass_count,
+#         "fail": fail_count,
+#         "error": error_count,
+#         "results": results,
+#     }
     summary = {
         "suite": args.suite,
         "tool": args.tool,
@@ -154,6 +227,8 @@ def main() -> int:
         "total": len(results),
         "pass": pass_count,
         "fail": fail_count,
+        "xfail": xfail_count,
+        "xpass": xpass_count,
         "error": error_count,
         "results": results,
     }
@@ -166,11 +241,19 @@ def main() -> int:
     mode_part = "" if args.mode == "deterministic" else f"/{args.mode}"
     print(f"run      : {args.tool}/{args.variant}{mode_part}/seed-{args.seed}/run-{args.run_index:03d}")
     print(f"total    : {len(results)}")
+#     print(f"pass     : {pass_count}")
+#     print(f"fail     : {fail_count}")
+#     print(f"error    : {error_count}")
     print(f"pass     : {pass_count}")
     print(f"fail     : {fail_count}")
+    print(f"xfail    : {xfail_count}")
+    print(f"xpass    : {xpass_count}")
     print(f"error    : {error_count}")
 
-    if args.strict and (fail_count > 0 or error_count > 0):
+#     if args.strict and (fail_count > 0 or error_count > 0):
+#         return 1
+#     return 0
+    if args.strict and (fail_count > 0 or error_count > 0 or xpass_count > 0):
         return 1
     return 0
 

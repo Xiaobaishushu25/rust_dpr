@@ -1149,6 +1149,20 @@ impl<'a, 'ast> Visit<'ast> for UnsafeBlockFfiScanner<'a> {
 
         visit::visit_expr_call(self, node);
     }
+    fn visit_expr_path(&mut self, node: &'ast ExprPath) {
+        let last = last_path_segment(node).unwrap_or_default();
+
+        if let Some(info) = self.abi_functions.get(&last) {
+            self.summary.calls_abi_function = true;
+
+            let abi_lower = info.abi.to_lowercase();
+            if info.may_panic || abi_lower.contains("unwind") || abi_lower == "c" {
+                self.summary.may_unwind_or_panic = true;
+            }
+        }
+
+        visit::visit_expr_path(self, node);
+    }
 }
 
 fn path_to_string(expr: &ExprPath) -> String {

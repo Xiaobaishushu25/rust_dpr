@@ -9,6 +9,9 @@ source:
   fixed_version: null
   url: null
 
+execution:
+  deterministic_test: panic_path_is_dangerous
+  
 ground_truth:
   primary_label: PanicAfterUnsafe
   relation: AfterUnsafe

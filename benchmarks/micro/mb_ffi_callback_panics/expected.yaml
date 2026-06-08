@@ -33,3 +33,7 @@ selection:
   manually_labeled: true
 notes:
   - intended to stress FFI boundary labeling, not ASan/Miri confirmation
+
+xfail:
+  enabled: true
+  reason: "Callback function pointer is bound outside the unsafe block; current scanner does not perform local alias/data-flow resolution."

@@ -9,6 +9,9 @@ source:
   fixed_version: null
   url: null
 
+execution:
+  deterministic_test: short_input_panics_before_unsafe
+
 ground_truth:
   primary_label: BlockingPanic
   relation: BeforeUnsafe

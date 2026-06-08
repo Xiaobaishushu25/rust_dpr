@@ -75,6 +75,7 @@
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_miri_no_finding_control/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/oracle/ob_miri_unsupported_ffi/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_slice_deque_2021_0047_fixed_control/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_slice_deque_2021_0047_manual_fixed_control/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_slice_deque_2021_0047_vuln/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_after_set_len_then_panic/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/taxonomy/tb_before_nested_callee/src" isTestSource="false" />
