@@ -1,3 +1,5 @@
 suite: regression
 cases:
   - rsec_slice_deque_2021_0047_vuln
+  - rsec_toodee_2021_0028_vuln
+  - rsec_toodee_2021_0028_fixed

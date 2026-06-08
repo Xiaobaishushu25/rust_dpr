@@ -573,7 +573,11 @@ fn build_relation_candidates<'a>(
     let panic_in_non_danger_helper = dangerous_hits.is_empty()
         && panic_fn_hint.as_ref().is_some_and(|hint| {
             exact_static_panic_functions.iter().any(|f| {
-                f != hint && dpg.shortest_distance_to_any_dangerous_site(f).distance.is_none()
+                f != hint
+                    && dpg
+                        .shortest_distance_to_any_dangerous_site(f)
+                        .distance
+                        .is_none()
             })
         });
     let mut candidates = Vec::new();
@@ -629,7 +633,7 @@ fn build_relation_candidates<'a>(
                 "ffi-boundary-candidate".to_string(),
                 "dangerous-site hit occurs at an FFI boundary before the panic".to_string(),
             )
-        }else if let Some(rel) = structural_relation {
+        } else if let Some(rel) = structural_relation {
             (
                 rel,
                 "static-structural-candidate".to_string(),
@@ -1005,7 +1009,9 @@ fn should_preserve_ffi_boundary_relation(site: &DangerousSite) -> bool {
 
     matches!(
         site.kind,
-        DangerousKind::FfiBoundary | DangerousKind::FfiUnwindBoundary | DangerousKind::FfiCallCandidate
+        DangerousKind::FfiBoundary
+            | DangerousKind::FfiUnwindBoundary
+            | DangerousKind::FfiCallCandidate
     ) && abi.contains("unwind")
 }
 
@@ -1147,7 +1153,6 @@ fn line_gap_to_span(line: usize, site: &DangerousSite) -> usize {
         0
     }
 }
-
 
 fn is_ffi_boundary_site(site: &DangerousSite) -> bool {
     matches!(

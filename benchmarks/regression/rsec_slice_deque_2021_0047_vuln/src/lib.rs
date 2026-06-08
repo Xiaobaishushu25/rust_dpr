@@ -11,9 +11,9 @@
 //! a child test process and treats a non-zero/abort status as the expected
 //! vulnerable behavior.
 
+use rustdpr_trace::{dpr_function, dpr_hit, install_panic_hook};
 use slice_deque::SliceDeque;
 use std::io::{self, Write};
-use rustdpr_trace::{dpr_function, dpr_hit, install_panic_hook};
 
 pub const SITE_DRAIN_FILTER_BOUNDARY: &str = "S00001";
 pub const FN_REPRODUCE: &str = "crate::run_public_api_poc";
@@ -123,7 +123,11 @@ mod tests {
     #[test]
     #[ignore = "child process that intentionally triggers the historical slice-deque bug"]
     fn __slice_deque_child_process() {
-        if std::env::var("RUSTDPR_SLICE_DEQUE_RUN_CHILD").ok().as_deref() != Some("1") {
+        if std::env::var("RUSTDPR_SLICE_DEQUE_RUN_CHILD")
+            .ok()
+            .as_deref()
+            != Some("1")
+        {
             eprintln!("child PoC test skipped because RUSTDPR_SLICE_DEQUE_RUN_CHILD is not set");
             return;
         }
@@ -185,8 +189,6 @@ mod tests {
             panic!("RUSTDPR_SLICE_DEQUE_REPLAY_CONFIRMED_AFTER_DRAIN_FILTER_BOUNDARY");
         }
 
-        panic!(
-            "RUSTDPR_SLICE_DEQUE_REPLAY_UNEXPECTEDLY_SUCCEEDED_AFTER_DRAIN_FILTER_BOUNDARY"
-        );
+        panic!("RUSTDPR_SLICE_DEQUE_REPLAY_UNEXPECTEDLY_SUCCEEDED_AFTER_DRAIN_FILTER_BOUNDARY");
     }
 }

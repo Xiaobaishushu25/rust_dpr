@@ -529,6 +529,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsec_toodee_2021_0028_fixed"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+ "toodee 0.3.0",
+]
+
+[[package]]
+name = "rsec_toodee_2021_0028_vuln"
+version = "0.1.0"
+dependencies = [
+ "rustdpr-trace",
+ "toodee 0.2.0",
+]
+
+[[package]]
 name = "rustdpr-analyzer"
 version = "0.1.0"
 dependencies = [
@@ -897,6 +913,18 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "toodee"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77186ae61fd690e6d3a91ac550ce1b08421a3b9f83c2d5c23c9d1520894ba55f"
+
+[[package]]
+name = "toodee"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2577f53e4e6ed12ebf809f6fda006f0456b71687abdf202d7ccf28f3db880a5"
 
 [[package]]
 name = "unicode-ident"

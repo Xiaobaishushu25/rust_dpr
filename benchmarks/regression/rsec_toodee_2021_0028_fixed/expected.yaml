@@ -1,0 +1,51 @@
+case_id: rsec_toodee_2021_0028_fixed
+suite: regression
+category: regression-official-fixed-control
+schema_version: 3
+
+source:
+  crate_name: toodee
+  vulnerable_version: "<0.3.0"
+  fixed_version: "=0.3.0"
+  advisory: RUSTSEC-2021-0028
+  cve:
+    - CVE-2021-28028
+    - CVE-2021-28029
+  ghsa:
+    - GHSA-wcvp-r8j8-47pc
+    - GHSA-xm9m-2vj8-fmfr
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0028.html
+  issue_url: https://github.com/antonmarsden/toodee/issues/13
+  external_crate: true
+  affected_function: toodee::TooDee::insert_row
+
+ground_truth:
+  primary_label: ContractPanic
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: ValidHarness
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 0
+
+dangerous_categories: []
+panic_kinds:
+  - IteratorPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public API toodee::TooDee::insert_row on
+    the official fixed release toodee 0.3.0. The iterator panic is a
+    user-code contract panic and is caught by the test; no raw pointers,
+    invalid lengths, or invalid ownership states are fabricated by the harness.
+selection:
+  reason: |
+    Official fixed-version control for RUSTSEC-2021-0028. It preserves the
+    same public API and panicking ExactSizeIterator trigger as the vulnerable
+    case, but should not produce duplicate drop, abort, or dangerous-path
+    evidence.
+  negative_case: true
+  manually_labeled: true
+
+controls:
+  vulnerable_version_case: rsec_toodee_2021_0028_vuln

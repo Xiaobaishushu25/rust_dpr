@@ -85,6 +85,8 @@ members = [
   "benchmarks/taxonomy/tb_harness_aliasing_raw_mut",
   "benchmarks/regression/rsec_slice_deque_2021_0047_vuln",
 "benchmarks/regression/rsec_slice_deque_2021_0047_vuln",
+  "benchmarks/regression/rsec_toodee_2021_0028_vuln",
+  "benchmarks/regression/rsec_toodee_2021_0028_fixed",
 ]
 exclude = [
   "benchmarks/micro/mb_panic_after_unsafe/fuzz",
@@ -166,6 +168,8 @@ exclude = [
   "benchmarks/taxonomy/tb_harness_aliasing_raw_mut/fuzz",
   "benchmarks/regression/rsec_slice_deque_2021_0047_vuln/fuzz",
 "benchmarks/regression/rsec_slice_deque_2021_0047_vuln/fuzz",
+  "benchmarks/regression/rsec_toodee_2021_0028_vuln/fuzz",
+  "benchmarks/regression/rsec_toodee_2021_0028_fixed/fuzz",
 ]
 resolver = "2"
 

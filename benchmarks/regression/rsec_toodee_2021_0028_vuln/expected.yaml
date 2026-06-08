@@ -1,0 +1,61 @@
+case_id: rsec_toodee_2021_0028_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: toodee
+  vulnerable_version: "=0.2.0"
+  fixed_version: ">=0.3.0"
+  advisory: RUSTSEC-2021-0028
+  cve:
+    - CVE-2021-28028
+    - CVE-2021-28029
+  ghsa:
+    - GHSA-wcvp-r8j8-47pc
+    - GHSA-xm9m-2vj8-fmfr
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0028.html
+  issue_url: https://github.com/antonmarsden/toodee/issues/13
+  external_crate: true
+  affected_function: toodee::TooDee::insert_row
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: ValidHarness
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationOwnership
+  - DropInvariant
+panic_kinds:
+  - IteratorPanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public API toodee::TooDee::insert_row on
+    toodee 0.2.0. It does not fabricate raw pointers, invalid lengths, or
+    invalid ownership state; the panic comes from a user-provided iterator,
+    which is the public advisory trigger.
+selection:
+  reason: |
+    Public RustSec/GHSA regression. The case invokes the real toodee
+    0.2.0 TooDee::insert_row API with the upstream issue #13 panicking
+    ExactSizeIterator pattern. The child-process replay provides evidence
+    for duplicate drop, abort, or equivalent platform-specific memory-safety
+    failure after the insert_row boundary.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: rsec_toodee_2021_0028_fixed
+
+notes:
+  replay_evidence: |
+    On platforms that unwind through the PoC, duplicate DropDetector output
+    may be observed. On other platforms/toolchains, the same public API path
+    may abort or terminate non-zero. Both are treated as replay evidence for
+    the vulnerable dangerous path.
