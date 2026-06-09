@@ -1,0 +1,9 @@
+[package]
+name = "rsec_direct_ring_buffer_2025_0105_fixed"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+direct_ring_buffer = "=0.2.2"
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

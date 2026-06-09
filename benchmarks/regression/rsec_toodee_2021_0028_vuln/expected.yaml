@@ -23,7 +23,7 @@ ground_truth:
   primary_label: PanicAfterUnsafe
   relation: AfterUnsafe
   oracle_verdict: Unknown
-  harness_status: ValidHarness
+  harness_status: LikelyValid
   security_relevant: true
   oracle_confirmable: true
   expected_reached_count: 1

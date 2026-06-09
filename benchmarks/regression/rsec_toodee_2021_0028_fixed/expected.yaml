@@ -22,8 +22,8 @@ source:
 ground_truth:
   primary_label: ContractPanic
   relation: NoneObserved
-  oracle_verdict: Unknown
-  harness_status: ValidHarness
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
   security_relevant: false
   oracle_confirmable: true
   expected_reached_count: 0
@@ -48,4 +48,5 @@ selection:
   manually_labeled: true
 
 controls:
+  fixed_version_case: null
   vulnerable_version_case: rsec_toodee_2021_0028_vuln

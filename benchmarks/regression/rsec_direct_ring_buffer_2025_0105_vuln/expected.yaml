@@ -1,0 +1,62 @@
+case_id: rsec_direct_ring_buffer_2025_0105_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: direct_ring_buffer
+  vulnerable_version: "=0.2.1"
+  fixed_version: ">=0.2.2"
+  advisory: RUSTSEC-2025-0105
+  cve: null
+  ghsa: GHSA-fp5x-7m4q-449f
+  url: https://rustsec.org/advisories/RUSTSEC-2025-0105.html
+  upstream_issue: https://github.com/ain1084/direct_ring_buffer/issues/1
+  upstream_pr: https://github.com/ain1084/direct_ring_buffer/pull/2
+  external_crate: true
+  affected_function: direct_ring_buffer::create_ring_buffer
+
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: NoneObserved
+  oracle_verdict: MiriUndefinedBehavior
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+  - AllocationInitialization
+  - TypeValidityInvariant
+panic_kinds: []
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public API direct_ring_buffer::create_ring_buffer
+    on direct_ring_buffer 0.2.1 and then reaches the crate's real
+    write_slices public API. It does not fabricate raw pointers,
+    invalid lengths, or invalid ownership state; the memory-safety
+    evidence is supplied by Miri on the true external crate path.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression with official fixed version. The
+    vulnerable API creates a typed bool buffer from uninitialized memory,
+    and the official advisory states that Miri confirms the resulting UB.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: rsec_direct_ring_buffer_2025_0105_fixed
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: miri_confirms_public_advisory_uninitialized_bool
+
+notes:
+  replay_evidence: |
+    This is a Miri-first regression case. Normal execution may not crash;
+    the expected oracle evidence is MiriUndefinedBehavior on the typed
+    bool slice exposed by the public API sequence.

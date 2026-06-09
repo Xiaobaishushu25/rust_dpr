@@ -84,9 +84,12 @@ members = [
   "benchmarks/taxonomy/tb_inside_unsafe_assert_macro",
   "benchmarks/taxonomy/tb_harness_aliasing_raw_mut",
   "benchmarks/regression/rsec_slice_deque_2021_0047_vuln",
-"benchmarks/regression/rsec_slice_deque_2021_0047_vuln",
   "benchmarks/regression/rsec_toodee_2021_0028_vuln",
   "benchmarks/regression/rsec_toodee_2021_0028_fixed",
+  "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_vuln",
+  "benchmarks/regression/rsec_insert_many_2021_0042_vuln",
+  "benchmarks/regression/rsec_through_2021_0049_vuln",
+#  "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_fixed",
 ]
 exclude = [
   "benchmarks/micro/mb_panic_after_unsafe/fuzz",
@@ -167,9 +170,13 @@ exclude = [
   "benchmarks/taxonomy/tb_inside_unsafe_assert_macro/fuzz",
   "benchmarks/taxonomy/tb_harness_aliasing_raw_mut/fuzz",
   "benchmarks/regression/rsec_slice_deque_2021_0047_vuln/fuzz",
-"benchmarks/regression/rsec_slice_deque_2021_0047_vuln/fuzz",
   "benchmarks/regression/rsec_toodee_2021_0028_vuln/fuzz",
   "benchmarks/regression/rsec_toodee_2021_0028_fixed/fuzz",
+  "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_vuln/fuzz",
+#  "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_fixed/fuzz",
+
+  "benchmarks/regression/rsec_insert_many_2021_0042_vuln/fuzz",
+  "benchmarks/regression/rsec_through_2021_0049_vuln/fuzz"
 ]
 resolver = "2"
 
@@ -185,6 +192,10 @@ quote = "1"
 petgraph = "0.6"
 once_cell = "1"
 chrono = { version = "0.4", features = ["serde"] }
+
+[patch.crates-io]
+direct_ring_buffer = { path = "vendor/direct_ring_buffer-0.2.1" }
+through = { path = "vendor/through-0.1.0" }
 
 [profile.release]
 debug = true

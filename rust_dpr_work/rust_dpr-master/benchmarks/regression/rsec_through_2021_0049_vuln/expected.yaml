@@ -1,0 +1,67 @@
+case_id: rsec_through_2021_0049_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: through
+  vulnerable_version: "=0.1.0"
+  fixed_version: null
+  advisory: RUSTSEC-2021-0049
+  cve: CVE-2021-29940
+  ghsa: GHSA-5hpj-m323-cphm
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0049.html
+  upstream_issue: https://github.com/gretchenfrage/through/issues/1
+  upstream_pr: null
+  external_crate: true
+  affected_function: through::through
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+  - AllocationOwnership
+  - DropInvariant
+panic_kinds:
+  - ClosurePanic
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public through::through API on through
+    0.1.0 with a normal owned DropDetector stored behind a mutable
+    reference. It does not fabricate raw pointers, invalid references,
+    or invalid ownership state. The only adversarial behavior is a
+    mapping closure that panics, which is the advisory trigger.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression with no patched version. The
+    vulnerable API performs ptr::read on a mutable reference, then
+    invokes a user-provided mapping closure. If the closure panics,
+    both the read-out object and the original referenced object can be
+    dropped, producing double free for non-Copy owned data.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: null
+  official_fixed_version_available: false
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  replay_evidence: |
+    This vulnerable-only case uses child-process replay because the
+    historical bug may terminate by panic, abort, allocator double-free
+    diagnostics, or platform-specific abnormal process exit. ASan/Miri
+    can be used later to upgrade oracle_verdict only after a confirmed
+    local oracle run.
