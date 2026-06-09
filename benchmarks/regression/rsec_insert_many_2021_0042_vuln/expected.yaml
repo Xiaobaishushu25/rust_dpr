@@ -19,10 +19,10 @@ source:
 ground_truth:
   primary_label: PanicAfterUnsafe
   relation: AfterUnsafe
-  oracle_verdict: Unknown
+  oracle_verdict: MiriUnsupported
   harness_status: LikelyValid
   security_relevant: true
-  oracle_confirmable: true
+  oracle_confirmable: false
   expected_reached_count: 1
 
 dangerous_categories:
