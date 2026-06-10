@@ -15,13 +15,16 @@ suites:
     description: Historical RustSec/CVE/GitHub cases.
     expected_cases_min: 12
   realworld:
-    description: Selected real-world crates.
+    description: Selected real-world crates, with local pilot extracts separated from pinned external crate wrappers.
     expected_cases_min: 10
+    external_cases_min_round1: 6
 
 selection_criteria:
   realworld:
     - crate builds with pinned toolchain
-    - contains unsafe/FFI/manual allocation/drop-sensitive code
+    - pins crate version or commit and records license/source URL
+    - wrapper calls real external crate public API rather than reimplementing core logic
+    - contains unsafe/FFI/manual allocation/drop-sensitive code or is a deliberate negative/control case
     - has stable tests or fuzz harness
     - covers at least one domain category
   regression:

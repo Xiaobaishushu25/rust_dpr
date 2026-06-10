@@ -1,0 +1,9 @@
+[package]
+name = "rw_png_decode"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }
+png = "=0.18.1"

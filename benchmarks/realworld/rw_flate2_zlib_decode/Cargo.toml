@@ -1,0 +1,9 @@
+[package]
+name = "rw_flate2_zlib_decode"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }
+flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }

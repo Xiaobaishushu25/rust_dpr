@@ -1,0 +1,54 @@
+case_id: rw_bytes_buf_ops
+suite: realworld
+category: realworld-external
+source:
+  crate_name: bytes
+  version: =1.11.1
+  url: https://crates.io/crates/bytes
+  license: MIT
+  features:
+  - default
+  upstream_fuzz_target: unknown
+  vendored: false
+  build_compatibility_patch: false
+selection:
+  reason: 'Pinned external crate used to cover bytes realworld behavior: BytesMut/Bytes
+    split and Buf cursor operations. The wrapper calls public API only and is intended
+    for coverage/DPC/TTDS comparisons, not historical vulnerability reproduction.'
+  domain: bytes
+  manually_labeled: true
+  negative_case: false
+ground_truth:
+  primary_label: Unknown
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+dangerous_categories:
+- BytesBuffer
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz bytes are passed through a thin adapter to the external
+    crate public API; the harness does not fabricate raw pointers, invalid raw parts,
+    fake lifetimes, or private unsafe preconditions.
+realworld:
+  fuzz_entrypoint: bytes::{BytesMut, Buf, BufMut}
+  input_kind: operation-sequence
+  expected_runtime_behavior: Malformed inputs should return errors or no candidate;
+    panics/crashes, if any, should be triaged by RustDPR rather than assumed security-relevant.
+  coverage_primary: true
+  dpc_primary: true
+  oracle_primary: false
+  notes: Bytes/buffer realworld case; exercises public buffer APIs without constructing
+    raw parts in the harness.
+execution:
+  deterministic_test: smoke
+  run_ignored: false
+notes:
+- Round-1 external realworld benchmark case. Not a known-vulnerability regression
+  case.
+- Dependency-source dangerous-site coverage requires RustDPR dependency/source scanning
+  or cargo-vendored sources; this case still validates wrapper compatibility, harness
+  validity, coverage collection, and candidate triage protocol.

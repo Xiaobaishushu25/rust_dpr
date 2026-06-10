@@ -1,0 +1,54 @@
+case_id: rw_postcard_deser
+suite: realworld
+category: realworld-external
+source:
+  crate_name: postcard
+  version: =1.1.3
+  url: https://crates.io/crates/postcard
+  license: MIT OR Apache-2.0
+  features:
+  - as pinned in Cargo.toml
+  upstream_fuzz_target: unknown
+  vendored: false
+  build_compatibility_patch: false
+selection:
+  reason: 'Pinned external crate used to cover serialization realworld behavior: Serde-compatible
+    binary deserialization from fuzz bytes. The wrapper calls public API only and
+    is intended for coverage/DPC/TTDS comparisons, not historical vulnerability reproduction.'
+  domain: serialization
+  manually_labeled: true
+  negative_case: false
+ground_truth:
+  primary_label: Unknown
+  relation: NoneObserved
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: false
+  expected_reached_count: 0
+dangerous_categories:
+- Serialization
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: fuzz bytes are passed through a thin adapter to the external
+    crate public API; the harness does not fabricate raw pointers, invalid raw parts,
+    fake lifetimes, or private unsafe preconditions.
+realworld:
+  fuzz_entrypoint: postcard::from_bytes::<Packet>
+  input_kind: bytes
+  expected_runtime_behavior: Malformed inputs should return errors or no candidate;
+    panics/crashes, if any, should be triaged by RustDPR rather than assumed security-relevant.
+  coverage_primary: true
+  dpc_primary: true
+  oracle_primary: false
+  notes: Serialization/deserialization realworld case; unknown inputs are expected
+    to return decode errors, not panics.
+execution:
+  deterministic_test: smoke
+  run_ignored: false
+notes:
+- Round-1 external realworld benchmark case. Not a known-vulnerability regression
+  case.
+- Dependency-source dangerous-site coverage requires RustDPR dependency/source scanning
+  or cargo-vendored sources; this case still validates wrapper compatibility, harness
+  validity, coverage collection, and candidate triage protocol.

@@ -6,3 +6,11 @@ cases:
   - rw_image_stride_copy
   - rw_arena_nonnull_handle
   - rw_packet_set_len_decoder
+  - rw_png_decode
+  - rw_jpeg_decoder_decode
+  - rw_postcard_deser
+  - rw_bytes_buf_ops
+  - rw_zerocopy_header_ref
+  - rw_lz4_flex_block_decode
+  - rw_flate2_zlib_decode
+  - rw_smallvec_ops
