@@ -65,6 +65,7 @@ fn child_output_has_replay_evidence(output: &Output) -> bool {
 
     let duplicate_drop_1 = combined.matches("Dropping through 1").count() >= 2;
 
+    //实际上这里的combined.contains("RUSTDPR_THROUGH_MAPPING_CLOSURE_PANIC")和子进程未正确退出都不是出现漏洞的精确证据
     !output.status.success()
         || duplicate_drop_1
         || combined.contains("RUSTDPR_THROUGH_MAPPING_CLOSURE_PANIC")
@@ -95,7 +96,7 @@ mod tests {
         let output = spawn_child_poc();
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-
+        println!("STDOUT:\n{stdout}\nSTDERR:\n{stderr}\nSTATUS:{:?}", output.status);
         assert!(
             !stdout.contains("running 0 tests"),
             "child PoC test was not selected by the test filter.\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}\nSTATUS:{:?}",
