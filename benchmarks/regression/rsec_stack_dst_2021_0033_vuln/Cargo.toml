@@ -1,0 +1,9 @@
+[package]
+name = "rsec_stack_dst_2021_0033_vuln"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+stack_dst = "=0.6.0"
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

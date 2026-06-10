@@ -89,7 +89,22 @@ members = [
   "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_vuln",
   "benchmarks/regression/rsec_insert_many_2021_0042_vuln",
   "benchmarks/regression/rsec_through_2021_0049_vuln",
+  "benchmarks/regression/rsec_scratchpad_2021_0030_vuln",
+#  "benchmarks/regression/rsec_scratchpad_2021_0030_fixed",
+  "benchmarks/regression/rsec_stack_dst_2021_0033_vuln",
+#  "benchmarks/regression/rsec_stack_dst_2021_0033_fixed",
+  "benchmarks/regression/rsec_qwutils_2021_0018_vuln",
+#  "benchmarks/regression/rsec_qwutils_2021_0018_fixed",
 #  "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_fixed",
+    "benchmarks/regression/rsec_ms3d_2021_0016_vuln",
+#    "benchmarks/regression/rsec_ms3d_2021_0016_fixed",
+    "benchmarks/regression/rsec_endian_trait_2021_0039_vuln",
+    "benchmarks/regression/rsec_marc_2021_0014_vuln",
+    "benchmarks/regression/rsec_marc_2021_0014_fixed",
+    "benchmarks/regression/rsec_cdr_2021_0012_vuln",
+#    "benchmarks/regression/rsec_cdr_2021_0012_fixed",
+    "benchmarks/regression/rsec_bra_2021_0008_vuln",
+#    "benchmarks/regression/rsec_bra_2021_0008_fixed",
 ]
 exclude = [
   "benchmarks/micro/mb_panic_after_unsafe/fuzz",
@@ -175,6 +190,21 @@ exclude = [
   "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_vuln/fuzz",
 #  "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_fixed/fuzz",
 
+  "benchmarks/regression/rsec_scratchpad_2021_0030_vuln/fuzz",
+  "benchmarks/regression/rsec_scratchpad_2021_0030_fixed/fuzz",
+  "benchmarks/regression/rsec_stack_dst_2021_0033_vuln/fuzz",
+  "benchmarks/regression/rsec_stack_dst_2021_0033_fixed/fuzz",
+  "benchmarks/regression/rsec_qwutils_2021_0018_vuln/fuzz",
+  "benchmarks/regression/rsec_qwutils_2021_0018_fixed/fuzz",
+  "benchmarks/regression/rsec_ms3d_2021_0016_vuln/fuzz",
+  "benchmarks/regression/rsec_ms3d_2021_0016_fixed/fuzz",
+  "benchmarks/regression/rsec_endian_trait_2021_0039_vuln/fuzz",
+  "benchmarks/regression/rsec_marc_2021_0014_vuln/fuzz",
+  "benchmarks/regression/rsec_marc_2021_0014_fixed/fuzz",
+  "benchmarks/regression/rsec_cdr_2021_0012_vuln/fuzz",
+  "benchmarks/regression/rsec_cdr_2021_0012_fixed/fuzz",
+  "benchmarks/regression/rsec_bra_2021_0008_vuln/fuzz",
+  "benchmarks/regression/rsec_bra_2021_0008_fixed/fuzz",
   "benchmarks/regression/rsec_insert_many_2021_0042_vuln/fuzz",
   "benchmarks/regression/rsec_through_2021_0049_vuln/fuzz"
 ]
@@ -196,6 +226,8 @@ chrono = { version = "0.4", features = ["serde"] }
 [patch.crates-io]
 direct_ring_buffer = { path = "vendor/direct_ring_buffer-0.2.1" }
 through = { path = "vendor/through-0.1.0" }
+scratchpad = { path = "vendor/scratchpad-1.3.0" }
+bra = { path = "vendor/bra-0.1.0" }
 
 [profile.release]
 debug = true

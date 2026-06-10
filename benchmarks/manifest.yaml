@@ -13,7 +13,7 @@ suites:
     expected_cases_min: 20
   regression:
     description: Historical RustSec/CVE/GitHub cases.
-    expected_cases_min: 10
+    expected_cases_min: 12
   realworld:
     description: Selected real-world crates.
     expected_cases_min: 10

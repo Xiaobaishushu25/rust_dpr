@@ -1,0 +1,63 @@
+
+case_id: rsec_bra_2021_0008_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: bra
+  vulnerable_version: "=0.1.0"
+  fixed_version: ">=0.1.1"
+  advisory: RUSTSEC-2021-0008
+  cve: CVE-2021-25905
+  ghsa: GHSA-j8qq-58cr-8cc7
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0008.html
+  upstream_issue: https://github.com/Enet4/bra-rs/issues/1
+  upstream_pr: https://github.com/Enet4/bra-rs/commit/3abfc99
+  external_crate: true
+  affected_function: bra::GreedyBufReader::fill_buf
+
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: NoneObserved
+  oracle_verdict: MiriUndefinedBehavior
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationInitialization
+  - UserProvidedRead
+  - MaybeUninit
+panic_kinds: []
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness invokes the real public GreedyBufReader API and its BufRead
+    implementation with a safe custom Read implementation. The reader inspects
+    the buffer before filling it, which arbitrary user Read implementations may
+    do. The vulnerability originates inside bra because it passes an
+    uninitialized internal buffer to the reader.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression. bra 0.1.0 created an uninitialized buffer in
+    the GreedyBufReader BufRead implementation and passed it to user Read.
+    The fixed 0.1.1 release zero-initializes the buffer, making this a clean
+    vulnerable/fixed pair for RustDPR's oracle and fixed-control evaluation.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: rsec_bra_2021_0008_fixed
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  oracle_expectation: |
+    Under Miri, the vulnerable version should report undefined behavior when the
+    wrapped Read implementation observes bra's uninitialized internal buffer.

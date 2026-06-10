@@ -1,0 +1,62 @@
+case_id: rsec_endian_trait_2021_0039_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: endian_trait
+  vulnerable_version: "=0.6.0"
+  fixed_version: null
+  advisory: RUSTSEC-2021-0039
+  cve: CVE-2021-29929
+  ghsa: GHSA-vpw8-43wm-rxw5
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0039.html
+  upstream_issue: https://github.com/ricky26/endian_trait.rs/issues/1
+  external_crate: true
+  affected_function: "<&mut [T] as endian_trait::Endian>::to_be"
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: Unknown
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+  - AllocationOwnership
+  - DropInvariant
+panic_kinds:
+  - TraitImplPanic
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness invokes endian_trait's real safe public slice conversion API and
+    provides a safe user implementation of the Endian trait. The harness does not
+    fabricate raw pointers or invalid ownership state; the adversarial behavior is
+    the user-provided trait implementation panic described by the advisory.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression. Affected endian_trait versions used ptr::read
+    while invoking safe user-provided Endian implementations; if the implementation
+    panics, ownership can be duplicated and the same value can be dropped twice.
+    This adds a real external-crate trait-boundary panic-safety case.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: null
+  official_fixed_version_available: false
+
+execution:
+  deterministic_test: reproduces_public_advisory
+
+notes:
+  fixed_control: |
+    The RustSec advisory lists no patched version, so this case is intentionally
+    included as an unpaired vulnerable historical regression rather than a fixed
+    control pair.

@@ -1,0 +1,60 @@
+case_id: rsec_qwutils_2021_0018_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: qwutils
+  vulnerable_version: "=0.3.0"
+  fixed_version: ">=0.3.1"
+  advisory: RUSTSEC-2021-0018
+  cve: CVE-2021-26954
+  ghsa: GHSA-68p4-pjpf-xwcq
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0018.html
+  upstream_issue: https://github.com/qwertz19281/rust_utils/issues/3
+  upstream_pr: https://github.com/qwertz19281/rust_utils/commit/20cb73d
+  external_crate: true
+  affected_function: qwutils::imp::vec::VecExt::insert_slice_clone
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: MiriUnsupported
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+  - AllocationOwnership
+  - DropInvariant
+panic_kinds:
+  - ClonePanic
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public qwutils 0.3.0 VecExt::insert_slice_clone API with
+    a safe Rust Clone implementation that panics. It does not fabricate raw pointers,
+    invalid lengths, or invalid ownership state.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression. Affected qwutils versions used ptr::copy when
+    inserting into the middle of a Vec; if cloning the inserted element panics, ownership
+    of shifted elements can be duplicated and then dropped twice.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: rsec_qwutils_2021_0018_fixed
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  replay_evidence: |
+    Child-process replay is used because the vulnerable path can terminate by panic,
+    allocator diagnostics, or platform-specific abnormal process exit.

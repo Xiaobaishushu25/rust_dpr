@@ -1,0 +1,63 @@
+
+case_id: rsec_cdr_2021_0012_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: cdr
+  vulnerable_version: "=0.2.3"
+  fixed_version: ">=0.2.4"
+  advisory: RUSTSEC-2021-0012
+  cve: CVE-2021-26305
+  ghsa: GHSA-37jj-wp7g-7wj4
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0012.html
+  upstream_issue: https://github.com/hrektts/cdr-rs/issues/10
+  upstream_pr: https://github.com/hrektts/cdr-rs/commit/ce310f7
+  external_crate: true
+  affected_function: cdr::Deserializer::read_vec
+
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: NoneObserved
+  oracle_verdict: MiriUndefinedBehavior
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationInitialization
+  - UserProvidedRead
+  - MaybeUninit
+panic_kinds: []
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness invokes cdr's real public deserialize_from API with a safe custom
+    Read implementation and a cdr-serialized Vec<u8> fixture. The reader only
+    observes the destination buffer before writing into it. The invalid memory
+    exposure originates inside the vulnerable cdr deserializer.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression. cdr <= 0.2.3 created an uninitialized vector
+    in Deserializer::read_vec and passed it to a user-provided Read
+    implementation. The case is useful for RustDPR because the harness is safe,
+    the evidence is Miri-oriented, and the fixed version keeps the same
+    deserialize_from public API.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: rsec_cdr_2021_0012_fixed
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  oracle_expectation: |
+    Under Miri, the vulnerable version should report undefined behavior when the
+    user Read implementation observes cdr's uninitialized Vec payload buffer.

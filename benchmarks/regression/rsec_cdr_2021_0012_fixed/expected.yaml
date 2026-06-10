@@ -1,0 +1,62 @@
+
+case_id: rsec_cdr_2021_0012_fixed
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: cdr
+  vulnerable_version: "=0.2.4"
+  fixed_version: ">=0.2.4"
+  advisory: RUSTSEC-2021-0012
+  cve: CVE-2021-26305
+  ghsa: GHSA-37jj-wp7g-7wj4
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0012.html
+  upstream_issue: https://github.com/hrektts/cdr-rs/issues/10
+  upstream_pr: https://github.com/hrektts/cdr-rs/commit/ce310f7
+  external_crate: true
+  affected_function: cdr::Deserializer::read_vec
+
+ground_truth:
+  primary_label: DangerousPathReached
+  relation: NoneObserved
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationInitialization
+  - UserProvidedRead
+  - MaybeUninit
+panic_kinds: []
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness invokes cdr's real public deserialize_from API with a safe custom
+    Read implementation and a cdr-serialized Vec<u8> fixture. The reader only
+    observes the destination buffer before writing into it. The invalid memory
+    exposure originates inside the vulnerable cdr deserializer.
+
+selection:
+  reason: |
+    Fixed-version control for RUSTSEC-2021-0012. cdr 0.2.4 keeps the same
+    deserialize_from API but zero-initializes the Vec buffer before passing it to
+    the user Read implementation, so the Miri-confirmed uninitialized-read
+    evidence should disappear.
+  negative_case: true
+  manually_labeled: true
+
+controls:
+  fixed_version_case: null
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  oracle_expectation: |
+    Under Miri, the fixed version should not report the uninitialized-buffer
+    undefined behavior observed in cdr 0.2.3 for this harness.

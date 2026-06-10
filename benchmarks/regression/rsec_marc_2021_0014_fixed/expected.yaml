@@ -1,0 +1,63 @@
+
+case_id: rsec_marc_2021_0014_fixed
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: marc
+  vulnerable_version: "=2.0.0"
+  fixed_version: ">=2.0.0"
+  advisory: RUSTSEC-2021-0014
+  cve: CVE-2021-26308
+  ghsa: GHSA-3mf3-2gv9-h39j
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0014.html
+  upstream_issue: https://github.com/blackbeam/rust-marc/issues/7
+  upstream_pr: https://github.com/blackbeam/rust-marc/commit/6299af0
+  external_crate: true
+  affected_function: marc::Record::read
+
+ground_truth:
+  primary_label: DangerousPathReached
+  relation: NoneObserved
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationInitialization
+  - UserProvidedRead
+  - MaybeUninit
+panic_kinds: []
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness invokes the real public marc 1.0.0 Record::read API with a safe
+    custom Read implementation. The reader inspects the byte slice before
+    filling it, which is allowed for arbitrary Read implementations. The unsafe
+    state originates inside the vulnerable crate because it exposes an
+    uninitialized internal record buffer to user code.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression. Fixed-version control for RUSTSEC-2021-0014. marc 2.0.0 keeps the same
+    Record::read public API shape but zero-initializes the internal buffer before
+    passing it to the user Read implementation, so it should not produce the
+    Miri-confirmed uninitialized-read evidence expected in the vulnerable case.
+  negative_case: true
+  manually_labeled: true
+
+controls:
+  fixed_version_case: null
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  oracle_expectation: |
+    Under Miri, the fixed version should not report the uninitialized-buffer
+    undefined behavior observed in marc 1.0.0 for this harness.

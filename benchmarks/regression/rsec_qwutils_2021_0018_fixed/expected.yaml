@@ -1,0 +1,49 @@
+case_id: rsec_qwutils_2021_0018_fixed
+suite: regression
+category: regression-official-fixed-control
+schema_version: 3
+
+source:
+  crate_name: qwutils
+  vulnerable_version: "<0.3.1"
+  fixed_version: "=0.3.1"
+  advisory: RUSTSEC-2021-0018
+  cve: CVE-2021-26954
+  ghsa: GHSA-68p4-pjpf-xwcq
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0018.html
+  upstream_issue: https://github.com/qwertz19281/rust_utils/issues/3
+  upstream_pr: https://github.com/qwertz19281/rust_utils/commit/20cb73d
+  external_crate: true
+  affected_function: qwutils::imp::vec::VecExt::insert_slice_clone
+
+ground_truth:
+  primary_label: ContractPanic
+  relation: NoneObserved
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 0
+
+dangerous_categories: []
+panic_kinds:
+  - ClonePanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public qwutils 0.3.1 fixed API with the same Clone-panic
+    shape as the vulnerable case. It does not fabricate invalid raw pointers, lengths,
+    or ownership states.
+selection:
+  reason: |
+    Official fixed-version control for RUSTSEC-2021-0018. It preserves the same public API
+    trigger but should not produce duplicate-drop evidence.
+  negative_case: true
+  manually_labeled: true
+
+controls:
+  fixed_version_case: null
+  vulnerable_version_case: rsec_qwutils_2021_0018_vuln
+
+execution:
+  deterministic_test: rustdpr_fixed_contract_panic_trace

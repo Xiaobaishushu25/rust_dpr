@@ -1,0 +1,64 @@
+case_id: rsec_stack_dst_2021_0033_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: stack_dst
+  vulnerable_version: "=0.6.0"
+  fixed_version: ">=0.6.1"
+  advisory: RUSTSEC-2021-0033
+  cve:
+    - CVE-2021-28034
+    - CVE-2021-28035
+  ghsa:
+    - GHSA-8mjx-h23h-w2pg
+    - GHSA-45w7-7g63-2m5w
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0033.html
+  upstream_issue: https://github.com/thepowersgang/stack_dst-rs/issues/4
+  upstream_pr: https://github.com/thepowersgang/stack_dst-rs/commit/2a4d538
+  external_crate: true
+  affected_function: stack_dst::StackA::push_cloned
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: MiriUnsupported
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+  - AllocationOwnership
+  - DropInvariant
+panic_kinds:
+  - ClonePanic
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public stack_dst 0.6.0 StackA::push_cloned API and uses
+    a safe Rust Clone implementation that panics. It does not fabricate raw pointers,
+    invalid buffer state, or invalid ownership state.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression. Affected stack_dst versions increased internal stack
+    length before calling Clone; if Clone panics, the stack can drop an already-dropped
+    element or uninitialized memory.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: rsec_stack_dst_2021_0033_fixed
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  replay_evidence: |
+    Child-process replay is used because the vulnerable path can terminate by panic,
+    allocator diagnostics, or platform-specific abnormal process exit.

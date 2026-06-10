@@ -1,9 +1,0 @@
-[package]
-name = "rsec_through_2021_0049_vuln"
-version = "0.1.0"
-edition = "2021"
-publish = false
-
-[dependencies]
-through = "=0.1.0"
-rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

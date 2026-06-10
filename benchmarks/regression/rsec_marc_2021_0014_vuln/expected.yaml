@@ -1,0 +1,64 @@
+
+case_id: rsec_marc_2021_0014_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: marc
+  vulnerable_version: "=1.0.0"
+  fixed_version: ">=2.0.0"
+  advisory: RUSTSEC-2021-0014
+  cve: CVE-2021-26308
+  ghsa: GHSA-3mf3-2gv9-h39j
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0014.html
+  upstream_issue: https://github.com/blackbeam/rust-marc/issues/7
+  upstream_pr: https://github.com/blackbeam/rust-marc/commit/6299af0
+  external_crate: true
+  affected_function: marc::Record::read
+
+ground_truth:
+  primary_label: OracleConfirmedBug
+  relation: NoneObserved
+  oracle_verdict: MiriUndefinedBehavior
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: true
+  expected_reached_count: 1
+
+dangerous_categories:
+  - AllocationInitialization
+  - UserProvidedRead
+  - MaybeUninit
+panic_kinds: []
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness invokes the real public marc 1.0.0 Record::read API with a safe
+    custom Read implementation. The reader inspects the byte slice before
+    filling it, which is allowed for arbitrary Read implementations. The unsafe
+    state originates inside the vulnerable crate because it exposes an
+    uninitialized internal record buffer to user code.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression. Affected marc versions passed an
+    uninitialized buffer to a user-provided Read implementation in
+    Record::read. This makes a good regression case because the same API and
+    harness can be paired against marc 2.0.0, where the buffer is zero-initialized.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: rsec_marc_2021_0014_fixed
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  oracle_expectation: |
+    Under Miri, the vulnerable version should report undefined behavior when the
+    user Read implementation observes the uninitialized buffer that marc passes
+    to it.

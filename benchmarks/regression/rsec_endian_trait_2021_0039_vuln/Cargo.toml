@@ -1,0 +1,9 @@
+[package]
+name = "rsec_endian_trait_2021_0039_vuln"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+endian_trait = "=0.6.0"
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

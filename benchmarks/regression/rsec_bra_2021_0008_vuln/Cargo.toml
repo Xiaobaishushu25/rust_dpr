@@ -1,0 +1,9 @@
+[package]
+name = "rsec_bra_2021_0008_vuln"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+bra = "=0.1.0"
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }

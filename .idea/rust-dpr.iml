@@ -94,6 +94,15 @@
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_direct_ring_buffer_2025_0105_vuln/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_insert_many_2021_0042_vuln/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_through_2021_0049_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_bra_2021_0008_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_cdr_2021_0012_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_endian_trait_2021_0039_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_marc_2021_0014_fixed/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_marc_2021_0014_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_ms3d_2021_0016_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_qwutils_2021_0018_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_scratchpad_2021_0030_vuln/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/benchmarks/regression/rsec_stack_dst_2021_0033_vuln/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_after_unsafe/fuzz/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/benchmarks/micro/mb_panic_before_unsafe/fuzz/target" />

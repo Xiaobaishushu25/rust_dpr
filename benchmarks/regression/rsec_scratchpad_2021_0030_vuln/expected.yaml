@@ -1,0 +1,61 @@
+case_id: rsec_scratchpad_2021_0030_vuln
+suite: regression
+category: regression-rustsec-external
+schema_version: 3
+
+source:
+  crate_name: scratchpad
+  vulnerable_version: "=1.3.0"
+  fixed_version: ">=1.3.1"
+  advisory: RUSTSEC-2021-0030
+  cve: CVE-2021-28031
+  ghsa: GHSA-3qm2-rfqw-fmrw
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0030.html
+  upstream_issue: https://github.com/okready/scratchpad/issues/1
+  upstream_pr: https://github.com/okready/scratchpad/commit/891561bea
+  external_crate: true
+  affected_function: scratchpad::SliceMoveSource::move_elements
+
+ground_truth:
+  primary_label: PanicAfterUnsafe
+  relation: AfterUnsafe
+  oracle_verdict: MiriUnsupported
+  harness_status: LikelyValid
+  security_relevant: true
+  oracle_confirmable: false
+  expected_reached_count: 1
+
+dangerous_categories:
+  - RawPointer
+  - AllocationOwnership
+  - DropInvariant
+panic_kinds:
+  - ClosurePanic
+
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public scratchpad 1.3.0 SliceMoveSource::move_elements API
+    on an owned array. It does not fabricate raw pointers, invalid lengths, or invalid
+    ownership state. The adversarial behavior is a user-provided closure panic, which is
+    the public advisory trigger.
+
+selection:
+  reason: |
+    Public RustSec/GHSA regression. Affected scratchpad versions used ptr::read while
+    invoking a user closure; if the closure panics, ownership can be duplicated and the
+    same element can be dropped twice during unwinding.
+  negative_case: false
+  manually_labeled: true
+
+controls:
+  fixed_version_case: rsec_scratchpad_2021_0030_fixed
+  official_fixed_version_available: true
+
+execution:
+  deterministic_test: rustdpr_deterministic_trace_replay
+
+notes:
+  replay_evidence: |
+    The deterministic RustDPR test uses child-process replay because the vulnerable path
+    may terminate by panic, allocator diagnostics, or platform-specific abnormal exit.

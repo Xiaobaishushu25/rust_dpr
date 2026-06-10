@@ -1,0 +1,22 @@
+[package]
+name = "rsec_marc_2021_0014_vuln-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+rsec_marc_2021_0014_vuln = { path = "..", package = "rsec_marc_2021_0014_vuln" }
+rustdpr-trace = { path = "../../../../crates/rustdpr-trace" }
+
+[[bin]]
+name = "fuzz_target_1"
+path = "fuzz_targets/fuzz_target_1.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]

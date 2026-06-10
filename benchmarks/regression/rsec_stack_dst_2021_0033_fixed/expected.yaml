@@ -1,0 +1,52 @@
+case_id: rsec_stack_dst_2021_0033_fixed
+suite: regression
+category: regression-official-fixed-control
+schema_version: 3
+
+source:
+  crate_name: stack_dst
+  vulnerable_version: "<0.6.1"
+  fixed_version: "=0.6.1"
+  advisory: RUSTSEC-2021-0033
+  cve:
+    - CVE-2021-28034
+    - CVE-2021-28035
+  ghsa:
+    - GHSA-8mjx-h23h-w2pg
+    - GHSA-45w7-7g63-2m5w
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0033.html
+  upstream_issue: https://github.com/thepowersgang/stack_dst-rs/issues/4
+  upstream_pr: https://github.com/thepowersgang/stack_dst-rs/commit/2a4d538
+  external_crate: true
+  affected_function: stack_dst::StackA::push_cloned
+
+ground_truth:
+  primary_label: ContractPanic
+  relation: NoneObserved
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 0
+
+dangerous_categories: []
+panic_kinds:
+  - ClonePanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public stack_dst 0.6.1 fixed API with the same Clone-panic
+    shape as the vulnerable case. It does not fabricate invalid raw pointers or ownership.
+selection:
+  reason: |
+    Official fixed-version control for RUSTSEC-2021-0033. It preserves the same public API
+    trigger but should not produce duplicate-drop or uninitialized-drop evidence.
+  negative_case: true
+  manually_labeled: true
+
+controls:
+  fixed_version_case: null
+  vulnerable_version_case: rsec_stack_dst_2021_0033_vuln
+
+execution:
+  deterministic_test: rustdpr_fixed_contract_panic_trace

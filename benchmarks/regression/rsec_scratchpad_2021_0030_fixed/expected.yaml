@@ -1,0 +1,49 @@
+case_id: rsec_scratchpad_2021_0030_fixed
+suite: regression
+category: regression-official-fixed-control
+schema_version: 3
+
+source:
+  crate_name: scratchpad
+  vulnerable_version: "<1.3.1"
+  fixed_version: "=1.3.1"
+  advisory: RUSTSEC-2021-0030
+  cve: CVE-2021-28031
+  ghsa: GHSA-3qm2-rfqw-fmrw
+  url: https://rustsec.org/advisories/RUSTSEC-2021-0030.html
+  upstream_issue: https://github.com/okready/scratchpad/issues/1
+  upstream_pr: https://github.com/okready/scratchpad/commit/891561bea
+  external_crate: true
+  affected_function: scratchpad::SliceMoveSource::move_elements
+
+ground_truth:
+  primary_label: ContractPanic
+  relation: NoneObserved
+  oracle_verdict: NoOracleFinding
+  harness_status: LikelyValid
+  security_relevant: false
+  oracle_confirmable: true
+  expected_reached_count: 0
+
+dangerous_categories: []
+panic_kinds:
+  - ClosurePanic
+harness:
+  path: fuzz/fuzz_targets/fuzz_target_1.rs
+  validity_rationale: |
+    The harness calls the real public scratchpad 1.3.1 fixed API with the same closure
+    panic shape as the vulnerable case. The panic is caught and no invalid raw pointers,
+    invalid lengths, or fabricated ownership states are introduced by the harness.
+selection:
+  reason: |
+    Official fixed-version control for RUSTSEC-2021-0030. It preserves the same public API
+    trigger as the vulnerable case but should not produce duplicate-drop evidence.
+  negative_case: true
+  manually_labeled: true
+
+controls:
+  fixed_version_case: null
+  vulnerable_version_case: rsec_scratchpad_2021_0030_vuln
+
+execution:
+  deterministic_test: rustdpr_fixed_contract_panic_trace

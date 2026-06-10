@@ -1,0 +1,9 @@
+[package]
+name = "rsec_marc_2021_0014_fixed"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+marc = "=2.0.0"
+rustdpr-trace = { path = "../../../crates/rustdpr-trace" }
