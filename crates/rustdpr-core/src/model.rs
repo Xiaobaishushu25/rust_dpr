@@ -222,6 +222,18 @@ pub struct DangerousSite {
     pub source_level: Option<String>,
 
     #[serde(default)]
+    pub source_crate: Option<String>,
+
+    #[serde(default)]
+    pub source_origin: Option<String>,
+
+    #[serde(default)]
+    pub source_version: Option<String>,
+
+    #[serde(default)]
+    pub source_root: Option<String>,
+
+    #[serde(default)]
     pub review_note: Option<String>,
 }
 
@@ -307,6 +319,12 @@ pub struct FunctionSummary {
     pub file: String,
     pub line_start: usize,
     pub line_end: usize,
+
+    #[serde(default)]
+    pub source_crate: Option<String>,
+
+    #[serde(default)]
+    pub source_origin: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -319,6 +337,113 @@ pub struct FunctionCallEdge {
 pub struct FunctionIndex {
     pub functions: Vec<FunctionSummary>,
     pub call_edges: Vec<FunctionCallEdge>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ExternalRunMeta {
+    #[serde(default = "default_schema_version")]
+    pub schema_version: String,
+
+    pub tool: String,
+
+    #[serde(default)]
+    pub variant: Option<String>,
+
+    pub crate_name: String,
+
+    #[serde(default)]
+    pub crate_version: Option<String>,
+
+    pub harness_id: String,
+    pub harness_path: String,
+
+    #[serde(default)]
+    pub engine: Option<String>,
+
+    #[serde(default)]
+    pub compile_status: String,
+
+    #[serde(default)]
+    pub return_code: Option<i32>,
+
+    #[serde(default)]
+    pub fuzz_budget_seconds: Option<u64>,
+
+    #[serde(default)]
+    pub seed: Option<u64>,
+
+    #[serde(default)]
+    pub raw_panic_count: usize,
+
+    #[serde(default)]
+    pub raw_crash_count: usize,
+
+    #[serde(default)]
+    pub unsafe_hit_count: usize,
+
+    #[serde(default)]
+    pub trace_path: Option<String>,
+
+    #[serde(default)]
+    pub coverage_path: Option<String>,
+
+    #[serde(default)]
+    pub crash_inputs: Vec<String>,
+
+    #[serde(default)]
+    pub corpus_dir: Option<String>,
+
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ReplayStability {
+    Stable,
+    Flaky,
+    NotReplayed,
+    Unsupported,
+}
+
+impl Default for ReplayStability {
+    fn default() -> Self {
+        ReplayStability::NotReplayed
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ReplayReport {
+    pub input_id: String,
+
+    #[serde(default)]
+    pub replay_runs: usize,
+
+    #[serde(default)]
+    pub replay_passes: usize,
+
+    #[serde(default)]
+    pub replay_failures: usize,
+
+    #[serde(default)]
+    pub replay_stable: bool,
+
+    #[serde(default)]
+    pub stability: ReplayStability,
+
+    #[serde(default)]
+    pub asan_verdict: Option<OracleVerdict>,
+
+    #[serde(default)]
+    pub miri_verdict: Option<OracleVerdict>,
+
+    #[serde(default)]
+    pub fixed_version_result: Option<String>,
+
+    #[serde(default)]
+    pub final_confidence: Option<String>,
+
+    #[serde(default)]
+    pub logs: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

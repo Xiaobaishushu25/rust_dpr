@@ -103,7 +103,12 @@ pub fn build_dpg(site_map: &SiteMap, function_index: &FunctionIndex) -> Dangerou
             &mut seen_nodes,
             DpgNode {
                 id: ds.site_id.clone(),
-                label: format!("{:?}:{:?}", ds.category, ds.kind),
+                label: format!(
+                    "{}:{:?}:{:?}",
+                    ds.source_crate.clone().unwrap_or_else(|| "wrapper".to_string()),
+                    ds.category,
+                    ds.kind
+                ),
                 kind: node_kind,
                 normalized_id: normalize_symbol(&ds.site_id),
             },

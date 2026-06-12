@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
-from common import BENCHMARKS_DIR, SUITES, discover_cases, load_yaml, normalize_expected_schema, write_csv
+from common import BENCHMARKS_DIR, SUITES, discover_cases, load_yaml, normalize_expected_schema, read_json, write_csv
 
 
 def benchmark_composition() -> list[dict]:
@@ -40,9 +41,34 @@ def benchmark_composition() -> list[dict]:
     return rows
 
 
+def make_rq7_table(metrics: dict[str, Any]) -> str:
+    groups = metrics.get("by_tool_variant") or {}
+    lines = [
+        "| Pipeline | MCP ↑ | Panic Noise FPR ↓ | Oracle/Reported ↑ | Replay Stable ↑ | Review Load ↓ | wDPC ↑ | P@5 ↑ | MRR ↑ | Reviews/Confirmed ↓ |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for pipeline, values in sorted(groups.items()):
+        reviews_per_confirmed = values.get("reviews_per_confirmed")
+        rpc = "n/a" if reviews_per_confirmed is None else f"{float(reviews_per_confirmed):.3f}"
+        lines.append(
+            f"| {pipeline} | "
+            f"{float(values.get('mcp', 0.0)):.3f} | "
+            f"{float(values.get('panic_noise_fpr', 0.0)):.3f} | "
+            f"{float(values.get('oracle_confirmed_per_reported', 0.0)):.3f} | "
+            f"{float(values.get('reproducibility_rate', 0.0)):.3f} | "
+            f"{float(values.get('review_load', 0.0)):.3f} | "
+            f"{float(values.get('wdpc_mean', 0.0)):.3f} | "
+            f"{float(values.get('precision_at_5', 0.0)):.3f} | "
+            f"{float(values.get('mrr', 0.0)):.3f} | "
+            f"{rpc} |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out-dir", default="reports/tables")
+    parser.add_argument("--metrics", default=None, help="optional metrics JSON for RQ7/RQ8 table")
     args = parser.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -53,6 +79,14 @@ def main() -> int:
         ["suite", "cases", "security_relevant", "negative", "oracle_confirmable"],
     )
     print(f"[done] wrote {out_dir / 'benchmark_composition.csv'}")
+
+    if args.metrics:
+        metrics = read_json(Path(args.metrics))
+        table = make_rq7_table(metrics)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        table_path = out_dir / "rq7_rq8_integration_efficiency.md"
+        table_path.write_text(table, encoding="utf-8")
+        print(f"[done] wrote {table_path}")
     return 0
 
 

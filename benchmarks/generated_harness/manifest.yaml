@@ -1,0 +1,18 @@
+schema_version: "0.3.0"
+suite: generated_harness
+description: External generated harness validation suite.
+
+tools:
+  - cargo-fuzz
+  - rpg
+  - rulf
+  - fourfuzz-style
+  - deepsurf-style
+
+case_schema:
+  required:
+    - crate
+    - upstream_tool
+    - harness_id
+    - harness_path
+    - external_meta

@@ -73,6 +73,7 @@ def iter_runs(suite: str) -> list[dict[str, Any]]:
                 "run_index": meta["run_index"],
                 "classification": classification,
                 "expected": expected,
+                "meta": meta,
             }
         )
     return rows
@@ -135,6 +136,68 @@ def confusion_counts(rows: list[dict[str, Any]], field: str) -> dict[str, Any]:
     }
 
 
+def confidence_rank(row: dict[str, Any]) -> float:
+    classification = row["classification"]
+    score = float(classification.get("confidence") or 0.0)
+    if classification.get("oracle_verdict") in CONFIRMED_ORACLES:
+        score += 1.0
+    if classification.get("primary_label") in MEANINGFUL_LABELS:
+        score += 0.5
+    if classification.get("review_required"):
+        score += 0.1
+    if classification.get("harness_status") in {"LikelyMisuse", "Invalid"}:
+        score -= 1.0
+    return score
+
+
+def is_true_candidate(row: dict[str, Any]) -> bool:
+    expected = row.get("expected")
+    classification = row["classification"]
+    if classification.get("oracle_verdict") in CONFIRMED_ORACLES:
+        return True
+    if expected and expected.get("security_relevant"):
+        return classification.get("primary_label") in MEANINGFUL_LABELS
+    return False
+
+
+def precision_at_k(rows: list[dict[str, Any]], k: int) -> float:
+    ranked = sorted(rows, key=confidence_rank, reverse=True)[:k]
+    return safe_div(sum(1 for row in ranked if is_true_candidate(row)), len(ranked))
+
+
+def mean_reciprocal_rank(rows: list[dict[str, Any]]) -> float:
+    ranked = sorted(rows, key=confidence_rank, reverse=True)
+    for idx, row in enumerate(ranked, start=1):
+        if is_true_candidate(row):
+            return 1.0 / idx
+    return 0.0
+
+
+def reviews_to_first_confirmed(rows: list[dict[str, Any]]) -> int | None:
+    ranked = sorted(rows, key=confidence_rank, reverse=True)
+    reviewed = 0
+    for row in ranked:
+        if row["classification"].get("review_required") or row["classification"].get("primary_label") not in {"Noise", "Unknown"}:
+            reviewed += 1
+        if is_true_candidate(row):
+            return max(reviewed, 1)
+    return None
+
+
+def first_event_time_for_site(row: dict[str, Any], site_ids: set[str]) -> int | None:
+    trace = load_run_artifact(row, "trace_log.json")
+    if not trace:
+        return None
+    for idx, event in enumerate(trace.get("events", [])):
+        if event.get("Hit", {}).get("site_id") in site_ids:
+            return int(event.get("Hit", {}).get("ts_millis") or idx)
+        if event.get("type") == "Hit" and event.get("site_id") in site_ids:
+            return int(event.get("ts_millis") or idx)
+        if event.get("site_id") in site_ids:
+            return int(event.get("ts_millis") or idx)
+    return None
+
+
 def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(rows)
     reported = [r for r in rows if r["classification"].get("primary_label") not in {"Noise", "Unknown"}]
@@ -161,7 +224,18 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         summary = Path(r["run_dir"]) / "replay_summary.json"
         if summary.exists():
             replay_summaries.append(read_json(summary))
-    reproducible = [x for x in replay_summaries if x.get("stable")]
+    reproducible = [x for x in replay_summaries if x.get("stable") or x.get("replay_stable")]
+
+    raw_panic_count = sum(int((r.get("meta") or {}).get("raw_panic_count", 0) or 0) for r in rows)
+    raw_crash_count = sum(int((r.get("meta") or {}).get("raw_crash_count", 0) or 0) for r in rows)
+    unsafe_hit_count = sum(int((r.get("meta") or {}).get("unsafe_hit_count", 0) or 0) for r in rows)
+    harness_misuse = [
+        r
+        for r in rows
+        if r["classification"].get("harness_status") in {"LikelyMisuse", "Invalid"}
+        or r["classification"].get("primary_label") == "HarnessMisuse"
+    ]
+    reviews_first = reviews_to_first_confirmed(rows)
 
     return {
         "total_runs": total,
@@ -171,6 +245,7 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "panic_noise_fpr": safe_div(len(noise_reported), len(reported)),
         "oracle_confirmed_runs": len(oracle_confirmed),
         "oracle_confirmed_rate": safe_div(len(oracle_confirmed), total),
+        "oracle_confirmed_per_reported": safe_div(len(oracle_confirmed), len(reported)),
         "review_required_runs": len(review_required),
         "review_load": safe_div(len(review_required), total),
         "expected_available": len(expected_available),
@@ -178,6 +253,18 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "security_relevant_recall": safe_div(len(true_meaningful), len(security_relevant_expected)),
         "replay_checked": len(replay_summaries),
         "reproducibility_rate": safe_div(len(reproducible), len(replay_summaries)),
+        "raw_panic_count": raw_panic_count,
+        "raw_crash_count": raw_crash_count,
+        "unsafe_hit_count": unsafe_hit_count,
+        "harness_misuse_rejected": len(harness_misuse),
+        "harness_misuse_rejection_rate": safe_div(len(harness_misuse), total),
+        "precision_at_1": precision_at_k(rows, 1),
+        "precision_at_3": precision_at_k(rows, 3),
+        "precision_at_5": precision_at_k(rows, 5),
+        "precision_at_10": precision_at_k(rows, 10),
+        "mrr": mean_reciprocal_rank(rows),
+        "reviews_to_first_confirmed": reviews_first,
+        "reviews_per_confirmed": safe_div(len(review_required), len(oracle_confirmed)),
         "primary_label_counts": dict(label_counts),
         "relation_counts": dict(relation_counts),
         "oracle_counts": dict(oracle_counts),

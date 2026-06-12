@@ -54,6 +54,8 @@ def main() -> int:
     parser.add_argument("--no-dpg", action="store_true")
     parser.add_argument("--no-harness-validity", action="store_true")
     parser.add_argument("--no-oracle", action="store_true")
+    parser.add_argument("--include-deps", action="store_true")
+    parser.add_argument("--dep-crates", default="")
     args = parser.parse_args()
 
     suite, case_dir = resolve_case(args.case, args.suite)
@@ -101,23 +103,26 @@ def main() -> int:
     print(f"[tool] {args.tool}/{args.variant}")
     print(f"[out ] {out_dir}")
 
-    run_cmd(
-        [
-            "cargo",
-            "run",
-            "-p",
-            "rustdpr-cli",
-            "--",
-            "analyze-sites",
-            "--crate-root",
-            str(case_dir),
-            "--out",
-            str(site_map),
-            "--function-out",
-            str(function_index),
-        ],
-        cwd=ROOT_DIR,
-    )
+    analyze_cmd = [
+        "cargo",
+        "run",
+        "-p",
+        "rustdpr-cli",
+        "--",
+        "analyze-sites",
+        "--crate-root",
+        str(case_dir),
+        "--out",
+        str(site_map),
+        "--function-out",
+        str(function_index),
+    ]
+    if args.include_deps:
+        analyze_cmd.append("--include-deps")
+        if args.dep_crates:
+            analyze_cmd.extend(["--dep-crates", args.dep_crates])
+
+    run_cmd(analyze_cmd, cwd=ROOT_DIR)
 
     run_cmd(
         [
@@ -326,6 +331,8 @@ def main() -> int:
         "budget_seconds": args.budget_seconds,
         "fuzz_target": args.fuzz_target if args.mode == "fuzz" else None,
         "fuzz_runs": args.fuzz_runs if args.mode == "fuzz" else None,
+        "include_deps": args.include_deps,
+        "dep_crates": args.dep_crates,
         "case_dir": str(case_dir),
         "out_dir": str(out_dir),
         "rustc_version": capture_version(["rustc", "--version", "--verbose"]),

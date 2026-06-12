@@ -17,3 +17,19 @@ pub fn reserve_set_len_then_panic(input: &[u8]) -> usize {
     }
     buf.len()
 }
+// ... existing code ...
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustdpr_trace::init_trace;
+
+    #[test]
+    #[should_panic(expected = "panic after manual Vec::set_len")]
+    fn test_panic_after_unsafe() {
+        init_trace("artifacts/trace.jsonl").unwrap();
+        let input = vec![7u8];
+        reserve_set_len_then_panic(&input);
+    }
+}
+

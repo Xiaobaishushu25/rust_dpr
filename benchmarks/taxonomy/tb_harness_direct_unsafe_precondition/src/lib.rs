@@ -18,3 +18,17 @@ pub fn safe_sum(input: &[u8]) -> u64 {
     install_panic_hook();
     unsafe { unsafe_sum_raw_parts(input.as_ptr(), input.len()) }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustdpr_trace::init_trace;
+
+    #[test]
+    fn test_safe_sum() {
+        init_trace("artifacts/trace.jsonl").unwrap();
+        let input = vec![1u8, 2, 3, 4];
+        let result = safe_sum(&input);
+        assert_eq!(result, 10);
+    }
+}

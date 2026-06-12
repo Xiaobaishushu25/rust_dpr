@@ -19,6 +19,9 @@ BENCHMARKS_DIR = ROOT_DIR / "benchmarks"
 DATA_DIR = ROOT_DIR / "data"
 REPORTS_DIR = ROOT_DIR / "reports"
 RUNS_DIR = DATA_DIR / "runs"
+EXTERNAL_TOOLS_DIR = ROOT_DIR / "external_tools"
+GENERATED_HARNESSES_DIR = ROOT_DIR / "generated_harnesses"
+EXTERNAL_RUNS_DIR = DATA_DIR / "external_runs"
 
 SUITES = ("micro", "taxonomy", "oracle", "regression", "realworld", "generated_harness")
 
@@ -30,9 +33,13 @@ TOOLS = (
     "asan-only",
     "miri-only",
     "fourfuzz-approx",
+    "fourfuzz-style",
     "deepsurf-approx",
+    "deepsurf-style",
     "rpg-approx",
+    "rpg",
     "rulf-approx",
+    "rulf",
 )
 
 VARIANTS = (
@@ -49,6 +56,8 @@ VARIANTS = (
     "crash-only",
     "oracle-only",
     "unsafe-targeted",
+    "generated-harness",
+    "llm-generated-harness",
 )
 
 
@@ -196,6 +205,44 @@ def run_output_dir(
     if mode and mode != "deterministic":
         base = base / mode
     return base / seed_part / f"run-{run_index:03d}"
+
+
+def external_run_output_dir(
+    suite: str,
+    case_name: str,
+    *,
+    upstream_tool: str,
+    harness_id: str,
+    seed: int | None,
+    run_index: int,
+    variant: str = "full",
+) -> Path:
+    seed_part = "seed-none" if seed is None else f"seed-{seed}"
+    return (
+        RUNS_DIR
+        / suite
+        / case_name
+        / upstream_tool
+        / variant
+        / harness_id
+        / seed_part
+        / f"run-{run_index:03d}"
+    )
+
+
+REQUIRED_EXTERNAL_META_FIELDS = {
+    "tool",
+    "crate",
+    "harness_id",
+    "harness_path",
+    "compile_status",
+}
+
+
+def validate_external_meta(meta: dict[str, Any]) -> None:
+    missing = sorted(REQUIRED_EXTERNAL_META_FIELDS - set(meta))
+    if missing:
+        raise RuntimeError(f"external run metadata missing fields: {missing}")
 
 
 def suite_case_expected_path(suite: str, case_name: str) -> Path:

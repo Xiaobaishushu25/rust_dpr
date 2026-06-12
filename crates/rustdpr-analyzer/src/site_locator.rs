@@ -15,7 +15,34 @@ use syn::{
 };
 use walkdir::{DirEntry, WalkDir};
 
+#[derive(Debug, Clone)]
+pub struct AnalyzeOptions {
+    pub crate_name: Option<String>,
+    pub source_origin: Option<String>,
+    /// Optional site-id namespace. Keep this as None for wrapper/current-crate
+    /// analysis so legacy benchmark traces that emit S00001/P00001 still match.
+    /// Dependency analysis sets this to the dependency crate name, e.g. bytes::S00001.
+    pub site_id_prefix: Option<String>,
+}
+
+impl Default for AnalyzeOptions {
+    fn default() -> Self {
+        Self {
+            crate_name: None,
+            source_origin: Some("wrapper".to_string()),
+            site_id_prefix: None,
+        }
+    }
+}
+
 pub fn analyze_crate(crate_root: &Path) -> Result<(SiteMap, FunctionIndex)> {
+    analyze_crate_with_options(crate_root, AnalyzeOptions::default())
+}
+
+pub fn analyze_crate_with_options(
+    crate_root: &Path,
+    options: AnalyzeOptions,
+) -> Result<(SiteMap, FunctionIndex)> {
     let crate_root = crate_root
         .canonicalize()
         .unwrap_or_else(|_| crate_root.to_path_buf());
@@ -48,6 +75,7 @@ pub fn analyze_crate(crate_root: &Path) -> Result<(SiteMap, FunctionIndex)> {
             &mut global_site_counter,
             &mut global_panic_counter,
             abi_functions,
+            options.clone(),
         );
         visitor.visit_file(&ast);
 
@@ -61,6 +89,23 @@ pub fn analyze_crate(crate_root: &Path) -> Result<(SiteMap, FunctionIndex)> {
     site_map.refresh_taxonomy();
 
     Ok((site_map, function_index))
+}
+
+pub fn merge_analysis_results(
+    mut base_site_map: SiteMap,
+    mut base_function_index: FunctionIndex,
+    extra: Vec<(SiteMap, FunctionIndex)>,
+) -> (SiteMap, FunctionIndex) {
+    for (site_map, function_index) in extra {
+        base_site_map.dangerous_sites.extend(site_map.dangerous_sites);
+        base_site_map.panic_sites.extend(site_map.panic_sites);
+        base_function_index.functions.extend(function_index.functions);
+        base_function_index.call_edges.extend(function_index.call_edges);
+    }
+
+    dedup_call_edges(&mut base_function_index.call_edges);
+    base_site_map.refresh_taxonomy();
+    (base_site_map, base_function_index)
 }
 
 fn should_skip_dir(entry: &DirEntry) -> bool {
@@ -113,6 +158,9 @@ struct SiteAndCallVisitor<'a> {
     abi_functions: HashMap<String, AbiFunctionInfo>,
     global_site_counter: &'a mut usize,
     global_panic_counter: &'a mut usize,
+    crate_name: Option<String>,
+    source_origin: Option<String>,
+    site_id_prefix: Option<String>,
 }
 
 impl<'a> SiteAndCallVisitor<'a> {
@@ -122,6 +170,7 @@ impl<'a> SiteAndCallVisitor<'a> {
         global_site_counter: &'a mut usize,
         global_panic_counter: &'a mut usize,
         abi_functions: HashMap<String, AbiFunctionInfo>,
+        options: AnalyzeOptions,
     ) -> Self {
         Self {
             crate_root,
@@ -136,17 +185,30 @@ impl<'a> SiteAndCallVisitor<'a> {
             abi_functions,
             global_site_counter,
             global_panic_counter,
+            crate_name: options.crate_name,
+            source_origin: options.source_origin,
+            site_id_prefix: options.site_id_prefix,
         }
     }
 
     fn next_dangerous_id(&mut self) -> String {
         *self.global_site_counter += 1;
-        format!("S{:05}", *self.global_site_counter)
+        match &self.site_id_prefix {
+            Some(prefix) if !prefix.is_empty() => {
+                format!("{}::S{:05}", prefix, *self.global_site_counter)
+            }
+            _ => format!("S{:05}", *self.global_site_counter),
+        }
     }
 
     fn next_panic_id(&mut self) -> String {
         *self.global_panic_counter += 1;
-        format!("P{:05}", *self.global_panic_counter)
+        match &self.site_id_prefix {
+            Some(prefix) if !prefix.is_empty() => {
+                format!("{}::P{:05}", prefix, *self.global_panic_counter)
+            }
+            _ => format!("P{:05}", *self.global_panic_counter),
+        }
     }
 
     fn span_info<T: Spanned>(&self, node: &T) -> SpanInfo {
@@ -211,11 +273,16 @@ impl<'a> SiteAndCallVisitor<'a> {
     fn module_prefix(&self) -> String {
         let mut parts = self.file_module_base();
         parts.extend(self.module_stack.iter().cloned());
+        let root = if self.site_id_prefix.is_some() {
+            self.crate_name.as_deref().unwrap_or("dependency")
+        } else {
+            "crate"
+        };
 
         if parts.is_empty() {
-            "crate".to_string()
+            root.to_string()
         } else {
-            format!("crate::{}", parts.join("::"))
+            format!("{}::{}", root, parts.join("::"))
         }
     }
 
@@ -227,6 +294,10 @@ impl<'a> SiteAndCallVisitor<'a> {
         self.current_fn
             .clone()
             .unwrap_or_else(|| "crate::root".to_string())
+    }
+
+    fn source_root_string(&self) -> Option<String> {
+        Some(self.crate_root.display().to_string())
     }
 
     fn add_dangerous<T: Spanned>(
@@ -286,6 +357,10 @@ impl<'a> SiteAndCallVisitor<'a> {
             ffi_abi: None,
             site_group: None,
             source_level: Some("ast-heuristic".to_string()),
+            source_crate: self.crate_name.clone(),
+            source_origin: self.source_origin.clone(),
+            source_version: None,
+            source_root: self.source_root_string(),
             review_note: None,
         };
         self.dangerous_sites.push(site);
@@ -320,6 +395,10 @@ impl<'a> SiteAndCallVisitor<'a> {
             ffi_abi: abi,
             site_group: Some("ffi".to_string()),
             source_level: Some("ast-heuristic".to_string()),
+            source_crate: self.crate_name.clone(),
+            source_origin: self.source_origin.clone(),
+            source_version: None,
+            source_root: self.source_root_string(),
             review_note: None,
         };
         if matches!(
@@ -358,6 +437,10 @@ impl<'a> SiteAndCallVisitor<'a> {
             ffi_abi: None,
             site_group: Some("macro".to_string()),
             source_level: Some("ast-macro-call".to_string()),
+            source_crate: self.crate_name.clone(),
+            source_origin: self.source_origin.clone(),
+            source_version: None,
+            source_root: self.source_root_string(),
             review_note: Some(
                 "AST-level macro call detected; exact expanded span requires cargo expand/rustc HIR"
                     .to_string(),
@@ -678,6 +761,8 @@ impl<'ast> Visit<'ast> for SiteAndCallVisitor<'_> {
             file: self.rel_file_path(),
             line_start: span.line_start,
             line_end: span.line_end,
+            source_crate: self.crate_name.clone(),
+            source_origin: self.source_origin.clone(),
         });
 
         if node.sig.unsafety.is_some() {

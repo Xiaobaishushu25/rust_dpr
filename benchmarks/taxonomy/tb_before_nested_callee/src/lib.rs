@@ -20,3 +20,17 @@ pub fn entry(input: &[u8]) -> u8 {
     }
     helper_with_unsafe(input)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustdpr_trace::init_trace;
+
+    #[test]
+    #[should_panic(expected = "entry rejects input before nested unsafe callee")]
+    fn test_entry_rejects_short_input() {
+        init_trace("artifacts/trace.jsonl").unwrap();
+        let input = vec![1u8];
+        entry(&input);
+    }
+}

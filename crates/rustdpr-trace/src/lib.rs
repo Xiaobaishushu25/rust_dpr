@@ -197,6 +197,15 @@ pub fn oracle_marker(oracle: &str, detail: &str) {
     write_event(&event);
 }
 
+pub fn input_start(input_id: &str) {
+    set_input_id(input_id);
+    oracle_marker("rustdpr-input", &format!("start:{input_id}"));
+}
+
+pub fn input_end(input_id: &str, status: &str) {
+    oracle_marker("rustdpr-input", &format!("end:{input_id}:{status}"));
+}
+
 pub fn install_panic_hook() {
     if trace_disabled() {
         return;

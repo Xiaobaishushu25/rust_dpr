@@ -18,6 +18,10 @@ suites:
     description: Selected real-world crates, with local pilot extracts separated from pinned external crate wrappers.
     expected_cases_min: 10
     external_cases_min_round1: 6
+  generated_harness:
+    description: External generated harnesses from RPG/RULF/FourFuzz/deepSURF-style pipelines.
+    expected_cases_min: 0
+    target_cases_round1: 5
 
 selection_criteria:
   realworld:

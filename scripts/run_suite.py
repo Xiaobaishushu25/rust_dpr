@@ -32,6 +32,8 @@ def run_case_subprocess(
     asan_log: str | None = None,
     miri_log: str | None = None,
     skip_harness: bool = False,
+    include_deps: bool = False,
+    dep_crates: str = "",
 ) -> tuple[int, str]:
     cmd = [
         sys.executable,
@@ -63,6 +65,10 @@ def run_case_subprocess(
         cmd.extend(["--miri-log", miri_log])
     if skip_harness:
         cmd.append("--skip-harness")
+    if include_deps:
+        cmd.append("--include-deps")
+        if dep_crates:
+            cmd.extend(["--dep-crates", dep_crates])
 
     print(f"[run] {' '.join(cmd)}")
     proc = subprocess.run(
@@ -97,6 +103,8 @@ def main() -> int:
     parser.add_argument("--skip-harness", action="store_true")
     parser.add_argument("--summary-json", default=None)
     parser.add_argument("--summary-csv", default=None)
+    parser.add_argument("--include-deps", action="store_true")
+    parser.add_argument("--dep-crates", default="")
     args = parser.parse_args()
 
     seeds = [int(x.strip()) for x in args.seeds.split(",") if x.strip()]
@@ -124,6 +132,8 @@ def main() -> int:
                     fuzz_target=args.fuzz_target,
                     fuzz_runs=args.fuzz_runs,
                     skip_harness=args.skip_harness,
+                    include_deps=args.include_deps,
+                    dep_crates=args.dep_crates,
                 )
 
                 out_dir = run_output_dir(
@@ -187,6 +197,8 @@ def main() -> int:
         "mode": args.mode,
         "fuzz_target": args.fuzz_target if args.mode == "fuzz" else None,
         "fuzz_runs": args.fuzz_runs if args.mode == "fuzz" else None,
+        "include_deps": args.include_deps,
+        "dep_crates": args.dep_crates,
         "repeat": args.repeat,
         "seeds": seeds,
         "total_runs": len(all_rows),

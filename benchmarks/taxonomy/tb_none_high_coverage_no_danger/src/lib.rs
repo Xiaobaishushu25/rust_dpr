@@ -27,3 +27,17 @@ pub fn process(input: &[u8]) -> u8 {
     }
     acc
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustdpr_trace::init_trace;
+
+    #[test]
+    #[should_panic(expected = "ordinary parser contract panic without dangerous path")]
+    fn test_process_with_trigger_byte() {
+        init_trace("artifacts/trace.jsonl").unwrap();
+        let input = vec![13u8, 1, 2, 3];
+        process(&input);
+    }
+}

@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use rustdpr_analyzer::{analyze_crate, analyze_harness_validity, build_dpg, collect_metadata};
+use rustdpr_analyzer::{
+    AnalyzeOptions, analyze_crate, analyze_crate_with_options, analyze_harness_validity, build_dpg,
+    collect_dependency_sources, collect_metadata, merge_analysis_results,
+};
 use rustdpr_classifier::classify_execution_with_options;
 use rustdpr_core::{
     ClassificationOptions, DangerousPathGraph, HarnessValidityReport, OracleVerdict, SiteMap,
@@ -35,6 +38,10 @@ enum Commands {
         out: PathBuf,
         #[arg(long)]
         function_out: Option<PathBuf>,
+        #[arg(long, default_value_t = false)]
+        include_deps: bool,
+        #[arg(long, value_delimiter = ',')]
+        dep_crates: Vec<String>,
     },
     BuildDpg {
         #[arg(long)]
@@ -106,8 +113,30 @@ fn main() -> Result<()> {
             crate_root,
             out,
             function_out,
+            include_deps,
+            dep_crates,
         } => {
-            let (site_map, function_index) = analyze_crate(&crate_root)?;
+            let (site_map, function_index) = if include_deps {
+                let (base_site_map, base_function_index) = analyze_crate(&crate_root)?;
+                let deps = collect_dependency_sources(&crate_root, &dep_crates)?;
+                let mut extra = Vec::new();
+
+                for dep in deps {
+                    let (dep_site_map, dep_function_index) = analyze_crate_with_options(
+                        &dep.root_dir,
+                        AnalyzeOptions {
+                            crate_name: Some(dep.name.clone()),
+                            source_origin: Some(dep.source_origin.clone()),
+                            site_id_prefix: Some(dep.name.clone()),
+                        },
+                    )?;
+                    extra.push((dep_site_map, dep_function_index));
+                }
+
+                merge_analysis_results(base_site_map, base_function_index, extra)
+            } else {
+                analyze_crate(&crate_root)?
+            };
             write_json(&out, &site_map)?;
             if let Some(function_out) = function_out {
                 write_json(&function_out, &function_index)?;

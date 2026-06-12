@@ -13,3 +13,17 @@ pub fn process(input: &[u8]) -> usize {
         *ptr
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustdpr_trace::init_trace;
+
+    #[test]
+    #[should_panic]
+    fn test_process_empty_input() {
+        init_trace("artifacts/trace.jsonl").unwrap();
+        let input: Vec<u8> = vec![];
+        process(&input);
+    }
+}

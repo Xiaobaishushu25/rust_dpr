@@ -19,3 +19,17 @@ pub fn entry(input: &[u8]) -> u8 {
         rust_callback_with_c_unwind_abi(value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustdpr_trace::init_trace;
+
+    #[test]
+    #[should_panic(expected = "callback contract panic at FFI boundary")]
+    fn test_ffi_callback_panic() {
+        init_trace("artifacts/trace.jsonl").unwrap();
+        let input = vec![0u8];
+        entry(&input);
+    }
+}
