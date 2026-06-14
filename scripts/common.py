@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import shutil
@@ -142,6 +143,61 @@ def read_json(path: Path) -> Any:
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8", errors="replace") as f:
+        for line_no, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            if not isinstance(obj, dict):
+                raise RuntimeError(f"invalid JSONL object at {path}:{line_no}")
+            rows.append(obj)
+    return rows
+
+
+def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    if value in (None, ""):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    if value in (None, ""):
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, tuple):
+        return list(value)
+    return [value]
+
+
+def load_optional_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    return read_json(path)
 
 
 def load_yaml(path: Path) -> Any:
@@ -408,6 +464,235 @@ CONFIRMED_ORACLE_VERDICTS = {
     "AddressSanitizerLeak",
     "MiriUndefinedBehavior",
 }
+
+PAPER_MEANINGFUL_LABELS = {
+    "PanicAfterUnsafe",
+    "InsideUnsafePanic",
+    "DangerousPathReached",
+    "OracleConfirmedBug",
+    "SuspiciousCandidate",
+}
+
+PAPER_NOISE_LABELS = {
+    "Noise",
+    "ContractPanic",
+    "BlockingPanic",
+    "HarnessMisuse",
+}
+
+PAPER_ACTIONABLE_RELATIONS = {"AfterUnsafe", "InsideUnsafe", "FfiBoundary", "AdjacentToUnsafe"}
+PAPER_BAD_HARNESS_STATUS = {"LikelyMisuse", "Invalid"}
+PAPER_GOOD_HARNESS_STATUS = {"ConfirmedValid", "LikelyValid"}
+PAPER_UNSUPPORTED_ORACLES = {"MiriUnsupported", "OracleTimeout", "OracleBuildFailure"}
+
+RELATION_SCORE = {
+    "InsideUnsafe": 5.0,
+    "AfterUnsafe": 4.0,
+    "FfiBoundary": 4.0,
+    "AdjacentToUnsafe": 2.5,
+    "BeforeUnsafe": -2.0,
+    "NoneObserved": -1.0,
+    "HarnessMisuse": -4.0,
+    "UnsupportedOracle": -2.0,
+    "Unknown": 0.0,
+}
+
+PRIMARY_LABEL_SCORE = {
+    "OracleConfirmedBug": 6.0,
+    "DangerousPathReached": 4.0,
+    "InsideUnsafePanic": 4.0,
+    "PanicAfterUnsafe": 3.0,
+    "SuspiciousCandidate": 2.0,
+    "BlockingPanic": -3.0,
+    "ContractPanic": -3.0,
+    "HarnessMisuse": -5.0,
+    "Noise": -4.0,
+    "Unknown": 0.0,
+}
+
+HARNESS_STATUS_SCORE = {
+    "ConfirmedValid": 2.0,
+    "LikelyValid": 1.0,
+    "Unknown": 0.0,
+    "LikelyMisuse": -3.0,
+    "Invalid": -5.0,
+}
+
+ORACLE_VERDICT_SCORE = {
+    "AddressSanitizerDoubleFree": 6.0,
+    "AddressSanitizerUseAfterFree": 6.0,
+    "AddressSanitizerOutOfBounds": 6.0,
+    "AddressSanitizerInvalidFree": 6.0,
+    "AddressSanitizerLeak": 4.0,
+    "MiriUndefinedBehavior": 6.0,
+    "NoOracleFinding": 0.0,
+    "MiriUnsupported": -1.0,
+    "OracleTimeout": -1.0,
+    "OracleBuildFailure": -2.0,
+    "Unknown": 0.0,
+}
+
+
+def candidate_id_for_run(meta: dict[str, Any], run_dir: Path | None = None) -> str:
+    explicit = meta.get("candidate_id") or meta.get("run_id")
+    if explicit:
+        return str(explicit).replace("/", "__")
+    parts = [
+        meta.get("suite", "unknown"),
+        meta.get("case", meta.get("crate", "unknown")),
+        meta.get("tool", "unknown"),
+        meta.get("variant", "unknown"),
+        f"seed-{meta.get('seed', 'none')}",
+        f"run-{meta.get('run_index', 1)}",
+    ]
+    if meta.get("harness_id"):
+        parts.insert(4, str(meta.get("harness_id")))
+    if run_dir is not None:
+        parts.append(hashlib.sha1(str(run_dir).encode("utf-8")).hexdigest()[:10])
+    return "__".join(str(x).replace("/", "_") for x in parts)
+
+
+def candidate_is_meaningful(classification: dict[str, Any]) -> bool:
+    return str(classification.get("primary_label") or "Unknown") in PAPER_MEANINGFUL_LABELS
+
+
+def candidate_is_actionable(classification: dict[str, Any]) -> bool:
+    primary = str(classification.get("primary_label") or "Unknown")
+    relation = str(classification.get("relation") or "Unknown")
+    harness = str(classification.get("harness_status") or "Unknown")
+    return (
+        primary in PAPER_MEANINGFUL_LABELS
+        and relation in PAPER_ACTIONABLE_RELATIONS
+        and harness not in PAPER_BAD_HARNESS_STATUS
+    )
+
+
+def candidate_is_oracle_confirmed(classification: dict[str, Any]) -> bool:
+    return str(classification.get("oracle_verdict") or "Unknown") in CONFIRMED_ORACLE_VERDICTS
+
+
+def candidate_evidence_grade(classification: dict[str, Any], *, replay_stable: bool = False) -> str:
+    if candidate_is_oracle_confirmed(classification) and replay_stable:
+        return "oracle-confirmed-replay-stable"
+    if candidate_is_oracle_confirmed(classification):
+        return "oracle-confirmed"
+    if candidate_is_actionable(classification):
+        return "actionable"
+    if candidate_is_meaningful(classification):
+        return "suspicious"
+    return "noise-or-unsupported"
+
+
+def candidate_score_components(
+    classification: dict[str, Any],
+    *,
+    reached_count: int = 0,
+    replay_stable: bool = False,
+    duplicate_ordinal: int = 1,
+) -> dict[str, float]:
+    primary = str(classification.get("primary_label") or "Unknown")
+    relation = str(classification.get("relation") or "Unknown")
+    harness = str(classification.get("harness_status") or "Unknown")
+    oracle = str(classification.get("oracle_verdict") or "Unknown")
+    distance = safe_float(classification.get("distance_to_dangerous_site"), 0.0)
+    confidence = safe_float(classification.get("confidence"), 0.0)
+    duplicate_penalty = -0.5 * max(0, duplicate_ordinal - 1)
+    distance_penalty = -min(max(distance, 0.0) * 0.25, 3.0)
+    return {
+        "primary_label": PRIMARY_LABEL_SCORE.get(primary, 0.0),
+        "relation": RELATION_SCORE.get(relation, 0.0),
+        "harness_status": HARNESS_STATUS_SCORE.get(harness, 0.0),
+        "oracle_verdict": ORACLE_VERDICT_SCORE.get(oracle, 0.0),
+        "model_confidence": max(0.0, min(confidence, 1.0)) * 2.0,
+        "dangerous_reach": min(max(reached_count, 0), 6) * 0.5,
+        "review_required": 0.25 if classification.get("review_required") else 0.0,
+        "replay_stable": 2.0 if replay_stable else 0.0,
+        "distance_penalty": distance_penalty,
+        "duplicate_penalty": duplicate_penalty,
+    }
+
+
+def candidate_score(
+    classification: dict[str, Any],
+    *,
+    reached_count: int = 0,
+    replay_stable: bool = False,
+    duplicate_ordinal: int = 1,
+) -> float:
+    return sum(
+        candidate_score_components(
+            classification,
+            reached_count=reached_count,
+            replay_stable=replay_stable,
+            duplicate_ordinal=duplicate_ordinal,
+        ).values()
+    )
+
+
+def candidate_duplicate_key(classification: dict[str, Any], meta: dict[str, Any]) -> str:
+    panic_location = classification.get("panic_location") or classification.get("panic_site")
+    if isinstance(panic_location, dict):
+        panic_location = f"{panic_location.get('file')}:{panic_location.get('line')}"
+    reached = classification.get("reached_dangerous_sites") or []
+    first_reached = reached[0] if isinstance(reached, list) and reached else "none"
+    backtrace_hash = classification.get("backtrace_hash") or classification.get("stack_hash") or "no-bt"
+    return "|".join(
+        [
+            str(meta.get("case") or meta.get("crate") or "unknown"),
+            str(classification.get("primary_label") or "Unknown"),
+            str(classification.get("relation") or "Unknown"),
+            str(classification.get("oracle_verdict") or "Unknown"),
+            str(first_reached),
+            str(panic_location or backtrace_hash),
+        ]
+    )
+
+
+def trace_event_kind(event: dict[str, Any]) -> str:
+    if "Hit" in event:
+        return "Hit"
+    if "Panic" in event:
+        return "Panic"
+    return str(event.get("type") or event.get("kind") or "Unknown")
+
+
+def trace_event_payload(event: dict[str, Any]) -> dict[str, Any]:
+    kind = trace_event_kind(event)
+    payload = event.get(kind)
+    return payload if isinstance(payload, dict) else event
+
+
+def trace_event_ts_millis(event: dict[str, Any], fallback: int) -> int:
+    payload = trace_event_payload(event)
+    return safe_int(payload.get("ts_millis") or payload.get("time_millis") or payload.get("timestamp_ms"), fallback)
+
+
+def trace_event_site_id(event: dict[str, Any]) -> str | None:
+    payload = trace_event_payload(event)
+    value = payload.get("site_id") or event.get("site_id")
+    return None if value is None else str(value)
+
+
+def first_trace_times(trace: dict[str, Any] | None, dangerous_ids: set[str] | None = None) -> dict[str, int | None]:
+    result: dict[str, int | None] = {
+        "first_event_time_ms": None,
+        "dangerous_hit_time_ms": None,
+        "panic_time_ms": None,
+    }
+    if not trace:
+        return result
+    dangerous_ids = dangerous_ids or set()
+    for idx, event in enumerate(trace.get("events", []) or []):
+        ts = trace_event_ts_millis(event, idx)
+        if result["first_event_time_ms"] is None:
+            result["first_event_time_ms"] = ts
+        kind = trace_event_kind(event)
+        site_id = trace_event_site_id(event)
+        if kind == "Hit" and site_id in dangerous_ids and result["dangerous_hit_time_ms"] is None:
+            result["dangerous_hit_time_ms"] = ts
+        if kind == "Panic" and result["panic_time_ms"] is None:
+            result["panic_time_ms"] = ts
+    return result
 
 
 def is_confirmed_oracle_verdict(verdict: str) -> bool:

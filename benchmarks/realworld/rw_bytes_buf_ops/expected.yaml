@@ -17,15 +17,16 @@ selection:
     for coverage/DPC/TTDS comparisons, not historical vulnerability reproduction.'
   domain: bytes
   manually_labeled: true
-  negative_case: false
+  negative_case: true
 ground_truth:
-  primary_label: Unknown
+  primary_label: Noise
   relation: NoneObserved
   oracle_verdict: Unknown
   harness_status: LikelyValid
   security_relevant: false
   oracle_confirmable: false
   expected_reached_count: 0
+
 dangerous_categories:
 - BytesBuffer
 harness:

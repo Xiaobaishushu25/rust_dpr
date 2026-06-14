@@ -8,9 +8,17 @@ from typing import Any
 from common import (
     RUNS_DIR,
     SUITES,
+    candidate_duplicate_key,
+    candidate_is_actionable,
+    candidate_is_meaningful,
+    candidate_is_oracle_confirmed,
+    candidate_score,
+    first_trace_times,
     load_yaml,
     normalize_expected_schema,
     read_json,
+    safe_float,
+    safe_int,
     suite_case_expected_path,
     write_json,
 )
@@ -138,16 +146,13 @@ def confusion_counts(rows: list[dict[str, Any]], field: str) -> dict[str, Any]:
 
 def confidence_rank(row: dict[str, Any]) -> float:
     classification = row["classification"]
-    score = float(classification.get("confidence") or 0.0)
-    if classification.get("oracle_verdict") in CONFIRMED_ORACLES:
-        score += 1.0
-    if classification.get("primary_label") in MEANINGFUL_LABELS:
-        score += 0.5
-    if classification.get("review_required"):
-        score += 0.1
-    if classification.get("harness_status") in {"LikelyMisuse", "Invalid"}:
-        score -= 1.0
-    return score
+    reached_count = len(classification.get("reached_dangerous_sites") or [])
+    return candidate_score(
+        classification,
+        reached_count=reached_count,
+        replay_stable=replay_stable_for_row(row),
+        duplicate_ordinal=1,
+    )
 
 
 def is_true_candidate(row: dict[str, Any]) -> bool:
@@ -182,6 +187,134 @@ def reviews_to_first_confirmed(rows: list[dict[str, Any]]) -> int | None:
         if is_true_candidate(row):
             return max(reviewed, 1)
     return None
+
+
+def replay_stable_for_row(row: dict[str, Any]) -> bool:
+    classification = row["classification"]
+    if "replay_stable" in classification:
+        return bool(classification.get("replay_stable"))
+    summary = Path(row["run_dir"]) / "replay_summary.json"
+    if summary.exists():
+        replay = read_json(summary)
+        return bool(replay.get("stable") or replay.get("replay_stable"))
+    queue = Path(row["run_dir"]) / "oracle_queue" / "oracle_queue_result.json"
+    if queue.exists():
+        data = read_json(queue)
+        return bool(data.get("stable") or data.get("replay_stable"))
+    return False
+
+
+def truth_gain(row: dict[str, Any]) -> float:
+    classification = row["classification"]
+    if candidate_is_oracle_confirmed(classification):
+        return 3.0
+    if candidate_is_actionable(classification):
+        return 2.0
+    if is_true_candidate(row) or candidate_is_meaningful(classification):
+        return 1.0
+    return 0.0
+
+
+def recall_at_k(rows: list[dict[str, Any]], k: int) -> float:
+    positives = [row for row in rows if truth_gain(row) > 0.0]
+    if not positives:
+        return 0.0
+    ranked = sorted(rows, key=confidence_rank, reverse=True)[:k]
+    return safe_div(sum(1 for row in ranked if truth_gain(row) > 0.0), len(positives))
+
+
+def oracle_confirmed_at_k(rows: list[dict[str, Any]], k: int) -> int:
+    ranked = sorted(rows, key=confidence_rank, reverse=True)[:k]
+    return sum(1 for row in ranked if candidate_is_oracle_confirmed(row["classification"]))
+
+
+def dcg_at_k(gains: list[float], k: int) -> float:
+    import math
+
+    total = 0.0
+    for idx, gain in enumerate(gains[:k], start=1):
+        total += (2.0**gain - 1.0) / math.log2(idx + 1)
+    return total
+
+
+def ndcg_at_k(rows: list[dict[str, Any]], k: int) -> float:
+    ranked_gains = [truth_gain(row) for row in sorted(rows, key=confidence_rank, reverse=True)]
+    ideal_gains = sorted((truth_gain(row) for row in rows), reverse=True)
+    ideal = dcg_at_k(ideal_gains, k)
+    return safe_div(dcg_at_k(ranked_gains, k), ideal)
+
+
+def dangerous_ids_for_row(row: dict[str, Any]) -> set[str]:
+    site_map = load_run_artifact(row, "site_map.json")
+    if not site_map:
+        return set()
+    return {str(site.get("site_id")) for site in site_map.get("dangerous_sites", []) if site.get("site_id") is not None}
+
+
+def candidate_first_seen_ms(row: dict[str, Any]) -> int | None:
+    classification = row["classification"]
+    for key in ["first_seen_time_ms", "dangerous_hit_time_ms", "panic_time_ms"]:
+        if classification.get(key) is not None:
+            return safe_int(classification.get(key))
+    trace = load_run_artifact(row, "trace_log.json")
+    times = first_trace_times(trace, dangerous_ids_for_row(row))
+    return times.get("dangerous_hit_time_ms") or times.get("panic_time_ms") or times.get("first_event_time_ms")
+
+
+def time_to_first_actionable_ms(rows: list[dict[str, Any]]) -> int | None:
+    values = [candidate_first_seen_ms(row) for row in rows if candidate_is_actionable(row["classification"])]
+    values = [value for value in values if value is not None]
+    return min(values) if values else None
+
+
+def time_to_first_oracle_confirmed_ms(rows: list[dict[str, Any]]) -> int | None:
+    values: list[int] = []
+    for row in rows:
+        if not candidate_is_oracle_confirmed(row["classification"]):
+            continue
+        queue = Path(row["run_dir"]) / "oracle_queue" / "oracle_queue_result.json"
+        if queue.exists():
+            data = read_json(queue)
+            if data.get("oracle_end_time_ms") is not None:
+                values.append(safe_int(data.get("oracle_end_time_ms")))
+                continue
+        meta = row.get("meta") or {}
+        if meta.get("oracle_end_time_ms") is not None:
+            values.append(safe_int(meta.get("oracle_end_time_ms")))
+        else:
+            first_seen = candidate_first_seen_ms(row)
+            if first_seen is not None:
+                values.append(first_seen)
+    return min(values) if values else None
+
+
+def oracle_budget_for_row(row: dict[str, Any]) -> tuple[int, float]:
+    meta = row.get("meta") or {}
+    oracle_runs = safe_int(meta.get("oracle_runs"), 0)
+    oracle_cpu = safe_float(meta.get("oracle_cpu_sec"), 0.0)
+    queue = Path(row["run_dir"]) / "oracle_queue" / "oracle_queue_result.json"
+    if queue.exists():
+        data = read_json(queue)
+        rows = data.get("oracle_rows") or []
+        oracle_runs += len(rows)
+        oracle_cpu += safe_float(data.get("oracle_cpu_sec") or data.get("oracle_wall_sec"), 0.0)
+    if row["classification"].get("oracle_verdict") not in {None, "Unknown"} and oracle_runs == 0:
+        oracle_runs = 1
+    return oracle_runs, oracle_cpu
+
+
+def duplicate_collapse_ratio(rows: list[dict[str, Any]]) -> float:
+    if not rows:
+        return 0.0
+    keys = {candidate_duplicate_key(row["classification"], row.get("meta") or {}) for row in rows}
+    return safe_div(len(rows), len(keys))
+
+
+def cpu_hours_for_rows(rows: list[dict[str, Any]]) -> float:
+    seconds = sum(safe_float((row.get("meta") or {}).get("budget_seconds"), 0.0) for row in rows)
+    if seconds <= 0.0:
+        seconds = sum(oracle_budget_for_row(row)[1] for row in rows)
+    return seconds / 3600.0
 
 
 def first_event_time_for_site(row: dict[str, Any], site_ids: set[str]) -> int | None:
@@ -236,6 +369,13 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         or r["classification"].get("primary_label") == "HarnessMisuse"
     ]
     reviews_first = reviews_to_first_confirmed(rows)
+    actionable = [r for r in rows if candidate_is_actionable(r["classification"])]
+    oracle_budget_rows = [oracle_budget_for_row(r) for r in rows]
+    oracle_runs_total = sum(x[0] for x in oracle_budget_rows)
+    oracle_cpu_total = sum(x[1] for x in oracle_budget_rows)
+    cpu_hours = cpu_hours_for_rows(rows)
+    ttae_ms = time_to_first_actionable_ms(rows)
+    ttoc_ms = time_to_first_oracle_confirmed_ms(rows)
 
     return {
         "total_runs": total,
@@ -262,9 +402,25 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "precision_at_3": precision_at_k(rows, 3),
         "precision_at_5": precision_at_k(rows, 5),
         "precision_at_10": precision_at_k(rows, 10),
+        "recall_at_10": recall_at_k(rows, 10),
+        "ndcg_at_10": ndcg_at_k(rows, 10),
+        "oracle_confirmed_at_1": oracle_confirmed_at_k(rows, 1),
+        "oracle_confirmed_at_5": oracle_confirmed_at_k(rows, 5),
+        "oracle_confirmed_at_10": oracle_confirmed_at_k(rows, 10),
         "mrr": mean_reciprocal_rank(rows),
         "reviews_to_first_confirmed": reviews_first,
         "reviews_per_confirmed": safe_div(len(review_required), len(oracle_confirmed)),
+        "actionable_candidates": len(actionable),
+        "ttae_ms": ttae_ms,
+        "ttoc_ms": ttoc_ms,
+        "oracle_runs": oracle_runs_total,
+        "oracle_cpu_seconds": oracle_cpu_total,
+        "obe": safe_div(len(oracle_confirmed), oracle_runs_total),
+        "obe_per_cpu_minute": safe_div(len(oracle_confirmed), oracle_cpu_total / 60.0),
+        "duplicate_collapse_ratio": duplicate_collapse_ratio(rows),
+        "cpu_hours_observed": cpu_hours,
+        "actionable_yield_per_cpu_hour": safe_div(len(actionable), cpu_hours),
+        "oracle_confirmed_yield_per_cpu_hour": safe_div(len(oracle_confirmed), cpu_hours),
         "primary_label_counts": dict(label_counts),
         "relation_counts": dict(relation_counts),
         "oracle_counts": dict(oracle_counts),

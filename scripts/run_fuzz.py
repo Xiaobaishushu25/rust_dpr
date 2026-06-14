@@ -19,6 +19,7 @@ def build_libfuzzer_args(*, budget_seconds: int, runs: int, seed: int, artifact_
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run a cargo-fuzz target for one RustDPR benchmark case")
     parser.add_argument("case")
+    parser.add_argument("--case-dir", default=None, help="direct benchmark crate root; used for instrumented working copies")
     parser.add_argument("--suite", choices=SUITES, default=None)
     parser.add_argument("--target", default="fuzz_target_1")
     parser.add_argument("--seed", type=int, default=1)
@@ -30,7 +31,11 @@ def main() -> int:
     parser.add_argument("--keep-corpus", action="store_true")
     args = parser.parse_args()
 
-    suite, case_dir = resolve_case(args.case, args.suite)
+    if args.case_dir:
+        suite = args.suite or "realworld"
+        case_dir = Path(args.case_dir)
+    else:
+        suite, case_dir = resolve_case(args.case, args.suite)
     fuzz_dir = case_dir / "fuzz"
     if not fuzz_dir.exists():
         raise SystemExit(f"fuzz directory not found: {fuzz_dir}")

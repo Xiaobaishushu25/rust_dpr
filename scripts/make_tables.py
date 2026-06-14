@@ -41,26 +41,35 @@ def benchmark_composition() -> list[dict]:
     return rows
 
 
+def _fmt_optional_ms(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        return f"{float(value) / 1000.0:.3f}s"
+    except (TypeError, ValueError):
+        return "n/a"
+
+
 def make_rq7_table(metrics: dict[str, Any]) -> str:
     groups = metrics.get("by_tool_variant") or {}
     lines = [
-        "| Pipeline | MCP ↑ | Panic Noise FPR ↓ | Oracle/Reported ↑ | Replay Stable ↑ | Review Load ↓ | wDPC ↑ | P@5 ↑ | MRR ↑ | Reviews/Confirmed ↓ |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Pipeline | MCP ↑ | FPR ↓ | P@5 ↑ | NDCG@10 ↑ | OC@10 ↑ | TTAE ↓ | TTOC ↓ | OBE ↑ | OBE/min ↑ | Actionable/hour ↑ | Review Load ↓ |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for pipeline, values in sorted(groups.items()):
-        reviews_per_confirmed = values.get("reviews_per_confirmed")
-        rpc = "n/a" if reviews_per_confirmed is None else f"{float(reviews_per_confirmed):.3f}"
         lines.append(
             f"| {pipeline} | "
             f"{float(values.get('mcp', 0.0)):.3f} | "
             f"{float(values.get('panic_noise_fpr', 0.0)):.3f} | "
-            f"{float(values.get('oracle_confirmed_per_reported', 0.0)):.3f} | "
-            f"{float(values.get('reproducibility_rate', 0.0)):.3f} | "
-            f"{float(values.get('review_load', 0.0)):.3f} | "
-            f"{float(values.get('wdpc_mean', 0.0)):.3f} | "
             f"{float(values.get('precision_at_5', 0.0)):.3f} | "
-            f"{float(values.get('mrr', 0.0)):.3f} | "
-            f"{rpc} |"
+            f"{float(values.get('ndcg_at_10', 0.0)):.3f} | "
+            f"{int(values.get('oracle_confirmed_at_10', 0) or 0)} | "
+            f"{_fmt_optional_ms(values.get('ttae_ms'))} | "
+            f"{_fmt_optional_ms(values.get('ttoc_ms'))} | "
+            f"{float(values.get('obe', 0.0)):.3f} | "
+            f"{float(values.get('obe_per_cpu_minute', 0.0)):.3f} | "
+            f"{float(values.get('actionable_yield_per_cpu_hour', 0.0)):.3f} | "
+            f"{float(values.get('review_load', 0.0)):.3f} |"
         )
     return "\n".join(lines) + "\n"
 

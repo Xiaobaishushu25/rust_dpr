@@ -6,11 +6,20 @@ from pathlib import Path
 
 from common import (
     ROOT_DIR,
+    candidate_evidence_grade,
+    candidate_id_for_run,
+    candidate_is_actionable,
+    candidate_is_meaningful,
+    candidate_is_oracle_confirmed,
+    candidate_score,
+    candidate_score_components,
+    first_trace_times,
     jsonl_trace_to_tracelog_json,
     read_json,
     run_cmd,
     validate_external_meta,
     write_json,
+    write_jsonl,
 )
 
 
@@ -213,6 +222,61 @@ def main() -> int:
             "replay_summary": args.replay_summary,
         }
     )
+    classification = read_json(classification_json)
+    site_map_data = read_json(site_map) if site_map.exists() else {}
+    trace_data = read_json(trace_log_json) if trace_log_json.exists() else {}
+    dangerous_ids = {
+        str(site.get("site_id"))
+        for site in site_map_data.get("dangerous_sites", [])
+        if site.get("site_id") is not None
+    }
+    trace_times = first_trace_times(trace_data, dangerous_ids)
+    reached = classification.get("reached_dangerous_sites") or []
+    replay_stable = bool(classification.get("replay_stable", False))
+    candidate_id = candidate_id_for_run(merged_meta, out_dir)
+    score_breakdown = candidate_score_components(
+        classification,
+        reached_count=len(reached),
+        replay_stable=replay_stable,
+        duplicate_ordinal=1,
+    )
+    candidates_jsonl = out_dir / "candidates.jsonl"
+    write_jsonl(
+        candidates_jsonl,
+        [
+            {
+                "schema_version": "0.1.0",
+                "candidate_id": candidate_id,
+                "suite": "generated_harness",
+                "case": crate_root.name,
+                "tool": meta.get("tool"),
+                "variant": meta.get("variant", "full"),
+                "mode": "external-output",
+                "seed": meta.get("seed"),
+                "run_index": 1,
+                "harness_id": meta.get("harness_id"),
+                "input_id": meta.get("input_id"),
+                "primary_label": classification.get("primary_label"),
+                "relation": classification.get("relation"),
+                "harness_status": classification.get("harness_status"),
+                "oracle_verdict": classification.get("oracle_verdict"),
+                "review_required": classification.get("review_required"),
+                "confidence": classification.get("confidence"),
+                "is_actionable": candidate_is_actionable(classification),
+                "is_meaningful": candidate_is_meaningful(classification),
+                "is_oracle_confirmed": candidate_is_oracle_confirmed(classification),
+                "evidence_grade": candidate_evidence_grade(classification, replay_stable=replay_stable),
+                "score": candidate_score(classification, reached_count=len(reached), replay_stable=replay_stable),
+                "score_breakdown": score_breakdown,
+                "reached_dangerous_sites": reached,
+                "first_seen_time_ms": trace_times.get("dangerous_hit_time_ms") or trace_times.get("panic_time_ms") or trace_times.get("first_event_time_ms"),
+                "dangerous_hit_time_ms": trace_times.get("dangerous_hit_time_ms"),
+                "panic_time_ms": trace_times.get("panic_time_ms"),
+                "run_dir": str(out_dir),
+            }
+        ],
+    )
+    merged_meta["candidates_path"] = str(candidates_jsonl)
     write_json(run_meta_json, merged_meta)
     print(f"[done] classification: {classification_json}")
     return 0
