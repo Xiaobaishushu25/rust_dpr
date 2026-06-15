@@ -40,3 +40,7 @@ paper-efficiency: oracle-queue-plan
 assist-generated:
 	mkdir -p $(HARNESS_DIR) reports/generated_harness
 	python3 scripts/run_generated_harness_eval.py --harness-dir $(HARNESS_DIR) --out-dir reports/generated_harness --total-budget-seconds $(FUZZ_BUDGET_SECONDS)
+
+compare-rulf-rustdpr:
+	python3 scripts/compute_metrics.py --suite generated_harness --out reports/metrics_generated_harness.json
+	python3 scripts/compare_pipelines.py --metrics reports/metrics_generated_harness.json --baseline rulf/crash-only --treatment rulf/full --out-json reports/rulf_vs_rustdpr_delta.json --out-csv reports/rulf_vs_rustdpr_delta.csv --out-md reports/rulf_vs_rustdpr_delta.md
