@@ -44,3 +44,31 @@ assist-generated:
 compare-rulf-rustdpr:
 	python3 scripts/compute_metrics.py --suite generated_harness --out reports/metrics_generated_harness.json
 	python3 scripts/compare_pipelines.py --metrics reports/metrics_generated_harness.json --baseline rulf/crash-only --treatment rulf/full --out-json reports/rulf_vs_rustdpr_delta.json --out-csv reports/rulf_vs_rustdpr_delta.csv --out-md reports/rulf_vs_rustdpr_delta.md
+
+
+
+
+# ---- cargo-fuzz official baseline integration helpers ----
+# Example:
+#   make cargo-fuzz-pilot-compare CRATE=url CRATE_VERSION=2.5.0 CRATE_ROOT=/path/to/rust-url CARGO_FUZZ_TARGET=parse FUZZ_BUDGET_SECONDS=300 LIMIT=1
+CRATE_ROOT ?=
+CARGO_FUZZ_TARGET ?=
+CARGO_FUZZ_LOG_DIR ?= reports/cargo_fuzz_logs
+
+run-cargo-fuzz:
+	python3 scripts/run_cargo_fuzz_pilot.py --crate-root $(CRATE_ROOT) $(if $(CARGO_FUZZ_TARGET),--target $(CARGO_FUZZ_TARGET),) --budget-seconds $(FUZZ_BUDGET_SECONDS) --seed 1 --log-dir $(CARGO_FUZZ_LOG_DIR) --summary-json reports/cargo_fuzz_run_summary.json
+
+collect-cargo-fuzz:
+	python3 scripts/collect_cargo_fuzz_outputs.py --crate $(CRATE) --crate-version "$(CRATE_VERSION)" --crate-root $(CRATE_ROOT) $(if $(CARGO_FUZZ_TARGET),--target $(CARGO_FUZZ_TARGET),) --seed 1 --budget-seconds $(FUZZ_BUDGET_SECONDS) --log-dir $(CARGO_FUZZ_LOG_DIR)
+
+run-cargo-fuzz-rustdpr:
+	python3 scripts/run_cargo_fuzz_rustdpr_batch.py --crate $(CRATE) --crate-root $(CRATE_ROOT) --variant full $(if $(LIMIT),--limit $(LIMIT),)
+
+materialize-cargo-fuzz-baselines:
+	python3 scripts/materialize_external_baselines.py --suite generated_harness --source-tool cargo-fuzz --source-variant full --baseline crash-only --out-variant crash-only
+
+compare-cargo-fuzz-rustdpr: materialize-cargo-fuzz-baselines
+	python3 scripts/compute_metrics.py --suite generated_harness --out reports/metrics_generated_harness.json
+	python3 scripts/compare_pipelines.py --metrics reports/metrics_generated_harness.json --baseline cargo-fuzz/crash-only --treatment cargo-fuzz/full --out-json reports/cargo_fuzz_vs_rustdpr_delta.json --out-csv reports/cargo_fuzz_vs_rustdpr_delta.csv --out-md reports/cargo_fuzz_vs_rustdpr_delta.md
+
+cargo-fuzz-pilot-compare: run-cargo-fuzz collect-cargo-fuzz run-cargo-fuzz-rustdpr compare-cargo-fuzz-rustdpr

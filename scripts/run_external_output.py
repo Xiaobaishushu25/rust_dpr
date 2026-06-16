@@ -35,6 +35,23 @@ def main() -> int:
     parser.add_argument("--asan-log", default=None)
     parser.add_argument("--miri-log", default=None)
     parser.add_argument("--replay-summary", default=None)
+    parser.add_argument("--tool-override", default=None, help="Override meta.tool in written run/candidate metadata")
+    parser.add_argument("--variant-override", default=None, help="Override meta.variant in written run/candidate metadata, e.g. full")
+    parser.add_argument(
+        "--evidence-mode",
+        choices=["rustdpr-replay", "trace-file", "empty-trace"],
+        default="rustdpr-replay",
+        help=(
+            "How RustDPR obtains dynamic evidence. rustdpr-replay uses only traces produced by "
+            "RustDPR-controlled replay; trace-file is for pre-existing RustDPR JSONL traces; "
+            "empty-trace is a legacy/debug fallback. cargo-fuzz/libFuzzer logs are never parsed here."
+        ),
+    )
+    parser.add_argument(
+        "--allow-missing-independent-trace",
+        action="store_true",
+        help="Do not convert missing RustDPR replay trace evidence into an Unknown/unsupported classification.",
+    )
     parser.add_argument("--panic-only", action="store_true")
     parser.add_argument("--static-only", action="store_true")
     parser.add_argument("--no-trace", action="store_true")
@@ -45,11 +62,22 @@ def main() -> int:
 
     meta = read_json(Path(args.meta))
     validate_external_meta(meta)
+    effective_tool = args.tool_override or meta.get("tool")
+    effective_variant = args.variant_override or meta.get("variant", "full")
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    crate_root = Path(args.crate_root)
+    crate_root = Path(args.crate_root).resolve()
+    if not crate_root.exists():
+        print(f"[error] crate_root does not exist: {crate_root}")
+        return 2
+    if not crate_root.is_dir():
+        print(f"[error] crate_root is not a directory: {crate_root}")
+        return 2
+    if not (crate_root / 'Cargo.toml').exists():
+        print(f"[error] crate_root has no Cargo.toml: {crate_root}")
+        return 2
     site_map = out_dir / "site_map.json"
     function_index = out_dir / "function_index.json"
     dpg = out_dir / "dpg.json"
@@ -118,16 +146,42 @@ def main() -> int:
         )
         harness_used = True
 
-    trace_path = meta.get("trace_path")
-    if trace_path and Path(trace_path).exists():
+    evidence_source = {
+        "mode": args.evidence_mode,
+        "trace": None,
+        "panic": "rustdpr_panic_hook_if_present",
+        "dangerous_hit": "rustdpr_trace_hit_if_present",
+        "oracle": "rustdpr_oracle_if_enabled",
+        "external_log_used": False,
+        "missing_independent_trace": False,
+        "notes": [],
+    }
+
+    trace_path: str | None = None
+    if args.evidence_mode == "rustdpr-replay":
+        trace_path = meta.get("rustdpr_trace_path") or meta.get("trace_path")
+        evidence_source["trace"] = "rustdpr_replay"
+    elif args.evidence_mode == "trace-file":
+        trace_path = meta.get("trace_path")
+        evidence_source["trace"] = "provided_rustdpr_trace_file"
+    else:
+        trace_path = None
+        evidence_source["trace"] = "empty_trace_debug_fallback"
+
+    trace_missing = not (trace_path and Path(trace_path).exists())
+    if not trace_missing:
         jsonl_trace_to_tracelog_json(
             Path(trace_path),
             trace_log_json,
             suite="generated_harness",
             case_name=meta.get("crate"),
-            run_id=f"{meta.get('tool')}/{meta.get('harness_id')}/{int(time.time())}",
+            run_id=f"{effective_tool}/{effective_variant}/{meta.get('harness_id')}/{int(time.time())}",
         )
     else:
+        evidence_source["missing_independent_trace"] = args.evidence_mode == "rustdpr-replay"
+        evidence_source["notes"].append(
+            "No RustDPR JSONL trace was available. This script does not parse cargo-fuzz/libFuzzer logs as evidence."
+        )
         write_json(
             trace_log_json,
             {
@@ -136,6 +190,7 @@ def main() -> int:
                 "case_name": meta.get("crate"),
                 "run_id": meta.get("harness_id"),
                 "events": [],
+                "evidence_source": evidence_source,
             },
         )
 
@@ -198,14 +253,73 @@ def main() -> int:
         report_cmd.extend(["--harness", str(harness_json)])
     run_cmd(report_cmd, cwd=ROOT_DIR)
 
+    classification = read_json(classification_json)
+    external_inputs_present = bool(
+        meta.get("input_files")
+        or meta.get("crash_inputs")
+        or meta.get("corpus_inputs")
+        or int(meta.get("raw_crash_count") or 0) > 0
+        or int(meta.get("raw_replay_failure_count") or 0) > 0
+    )
+    if (
+        args.evidence_mode == "rustdpr-replay"
+        and trace_missing
+        and external_inputs_present
+        and not args.allow_missing_independent_trace
+    ):
+        notes = classification.get("notes") if isinstance(classification.get("notes"), dict) else {}
+        note_list = list(notes.get("notes") or [])
+        note_list.append(
+            "RustDPR did not classify this external input as Noise because no independent RustDPR replay trace was produced. "
+            "cargo-fuzz/libFuzzer logs were not parsed as classification evidence."
+        )
+        fired_rules = list(notes.get("fired_rules") or [])
+        fired_rules.append("missing-rustdpr-independent-trace")
+        evidence_summary = list(notes.get("evidence_summary") or [])
+        evidence_summary.append(
+            "Unsupported for RustDPR validation: external inputs exist, but RustDPR replay produced no trace."
+        )
+        decision_path = list(notes.get("decision_path") or [])
+        decision_path.append(
+            "evidence_mode=rustdpr-replay, external_log_used=false, trace_path_missing=true"
+        )
+        notes.update(
+            {
+                "notes": note_list,
+                "fired_rules": fired_rules,
+                "evidence_summary": evidence_summary,
+                "decision_path": decision_path,
+                "evidence_source": evidence_source,
+            }
+        )
+        classification.update(
+            {
+                "primary_label": "Unknown",
+                "relation": "Unknown",
+                "reached_dangerous_sites": [],
+                "nearest_dangerous_site": None,
+                "distance_to_dangerous_site": None,
+                "oracle_verdict": classification.get("oracle_verdict", "Unknown"),
+                "oracle_evidence_strength": classification.get("oracle_evidence_strength", "Unknown"),
+                "confidence": 0.0,
+                "review_required": True,
+                "notes": notes,
+                "evidence_source": evidence_source,
+            }
+        )
+        write_json(classification_json, classification)
+
     merged_meta = dict(meta)
     merged_meta.update(
         {
             "suite": "generated_harness",
             "case": crate_root.name,
-            "tool": meta.get("tool"),
-            "variant": meta.get("variant", "full"),
+            "tool": effective_tool,
+            "variant": effective_variant,
             "mode": "external-output",
+            "evidence_mode": args.evidence_mode,
+            "evidence_source": evidence_source,
+            "external_log_used_by_rustdpr": False,
             "seed": meta.get("seed"),
             "run_index": 1,
             "budget_seconds": meta.get("fuzz_budget_seconds", 0),
@@ -249,8 +363,8 @@ def main() -> int:
                 "candidate_id": candidate_id,
                 "suite": "generated_harness",
                 "case": crate_root.name,
-                "tool": meta.get("tool"),
-                "variant": meta.get("variant", "full"),
+                "tool": effective_tool,
+                "variant": effective_variant,
                 "mode": "external-output",
                 "seed": meta.get("seed"),
                 "run_index": 1,

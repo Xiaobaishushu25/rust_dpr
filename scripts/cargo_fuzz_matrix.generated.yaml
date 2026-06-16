@@ -1,0 +1,132 @@
+defaults:
+  crate_version: 0.1.0
+  seeds:
+  - 1
+  - 2
+  - 3
+  budget_seconds: 60
+  replay_limit: 20
+  input_kind: all
+  include_deps: false
+  skip_run_cargo_fuzz: false
+cases:
+- crate: mb_assume_init_ub
+  crate_root: benchmarks/micro/mb_assume_init_ub
+  targets:
+  - fuzz_target_1
+- crate: mb_before_unsafe_guarded_by_length
+  crate_root: benchmarks/micro/mb_before_unsafe_guarded_by_length
+  targets:
+  - fuzz_target_1
+- crate: mb_before_unsafe_nested_call
+  crate_root: benchmarks/micro/mb_before_unsafe_nested_call
+  targets:
+  - fuzz_target_1
+- crate: mb_before_unsafe_same_fn_branch
+  crate_root: benchmarks/micro/mb_before_unsafe_same_fn_branch
+  targets:
+  - fuzz_target_1
+- crate: mb_drop_invariant_after_panic
+  crate_root: benchmarks/micro/mb_drop_invariant_after_panic
+  targets:
+  - fuzz_target_1
+- crate: mb_drop_then_panic
+  crate_root: benchmarks/micro/mb_drop_then_panic
+  targets:
+  - fuzz_target_1
+- crate: mb_ffi_c_unwind_callback_panic
+  crate_root: benchmarks/micro/mb_ffi_c_unwind_callback_panic
+  targets:
+  - fuzz_target_1
+- crate: mb_ffi_callback_panics
+  crate_root: benchmarks/micro/mb_ffi_callback_panics
+  targets:
+  - fuzz_target_1
+- crate: mb_ffi_extern_c_unwind_boundary
+  crate_root: benchmarks/micro/mb_ffi_extern_c_unwind_boundary
+  targets:
+  - fuzz_target_1
+- crate: mb_ffi_unwind_boundary
+  crate_root: benchmarks/micro/mb_ffi_unwind_boundary
+  targets:
+  - fuzz_target_1
+- crate: mb_harness_aliasing_raw_mut
+  crate_root: benchmarks/micro/mb_harness_aliasing_raw_mut
+  targets:
+  - fuzz_target_1
+- crate: mb_harness_invalid_len_capacity
+  crate_root: benchmarks/micro/mb_harness_invalid_len_capacity
+  targets:
+  - fuzz_target_1
+- crate: mb_harness_misuse_null
+  crate_root: benchmarks/micro/mb_harness_misuse_null
+  targets:
+  - fuzz_target_1
+- crate: mb_harness_null_ptr_direct
+  crate_root: benchmarks/micro/mb_harness_null_ptr_direct
+  targets:
+  - fuzz_target_1
+- crate: mb_inside_unsafe_assert
+  crate_root: benchmarks/micro/mb_inside_unsafe_assert
+  targets:
+  - fuzz_target_1
+- crate: mb_inside_unsafe_index
+  crate_root: benchmarks/micro/mb_inside_unsafe_index
+  targets:
+  - fuzz_target_1
+- crate: mb_inside_unsafe_unwrap
+  crate_root: benchmarks/micro/mb_inside_unsafe_unwrap
+  targets:
+  - fuzz_target_1
+- crate: mb_maybeuninit_assume_init_after_panic
+  crate_root: benchmarks/micro/mb_maybeuninit_assume_init_after_panic
+  targets:
+  - fuzz_target_1
+- crate: mb_maybeuninit_read
+  crate_root: benchmarks/micro/mb_maybeuninit_read
+  targets:
+  - fuzz_target_1
+- crate: mb_none_static_unsafe_unreached
+  crate_root: benchmarks/micro/mb_none_static_unsafe_unreached
+  targets:
+  - fuzz_target_1
+- crate: mb_panic_after_unsafe
+  crate_root: benchmarks/micro/mb_panic_after_unsafe
+  targets:
+  - fuzz_target_1
+- crate: mb_panic_before_unsafe
+  crate_root: benchmarks/micro/mb_panic_before_unsafe
+  targets:
+  - fuzz_target_1
+- crate: mb_panic_inside_unsafe
+  crate_root: benchmarks/micro/mb_panic_inside_unsafe
+  targets:
+  - fuzz_target_1
+- crate: mb_raw_ptr_read_then_panic
+  crate_root: benchmarks/micro/mb_raw_ptr_read_then_panic
+  targets:
+  - fuzz_target_1
+- crate: mb_raw_ptr_write_then_panic
+  crate_root: benchmarks/micro/mb_raw_ptr_write_then_panic
+  targets:
+  - fuzz_target_1
+- crate: mb_set_len_then_panic
+  crate_root: benchmarks/micro/mb_set_len_then_panic
+  targets:
+  - fuzz_target_1
+- crate: mb_slice_from_raw_parts
+  crate_root: benchmarks/micro/mb_slice_from_raw_parts
+  targets:
+  - fuzz_target_1
+- crate: mb_transmute_contract
+  crate_root: benchmarks/micro/mb_transmute_contract
+  targets:
+  - fuzz_target_1
+- crate: mb_unchecked_index
+  crate_root: benchmarks/micro/mb_unchecked_index
+  targets:
+  - fuzz_target_1
+- crate: mb_unwrap_shallow
+  crate_root: benchmarks/micro/mb_unwrap_shallow
+  targets:
+  - fuzz_target_1
