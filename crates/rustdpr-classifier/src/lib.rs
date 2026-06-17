@@ -180,7 +180,7 @@ pub fn classify_execution_with_options(
             target_api_misuse,
             harness_status,
             confidence: 0.99,
-            review_required: false,
+            review_required: true,
             notes,
         };
     }
@@ -233,12 +233,18 @@ fn decide_primary_label(
     match (has_panic, has_reached, relation) {
         (false, true, RelationLabel::NoneObserved) => {
             notes.fired_rules.push("dangerous-path-reached".into());
+            notes.evidence_summary.push(
+                "dangerous path was reached without panic; keep as evidence but do not enter the panic/crash review queue".into(),
+            );
             (PrimaryLabel::DangerousPathReached, 0.88, false)
         }
 
         (true, _, RelationLabel::InsideUnsafe) => {
             notes.fired_rules.push("inside-unsafe-panic".into());
-            (PrimaryLabel::InsideUnsafePanic, 0.92, false)
+            notes.evidence_summary.push(
+                "panic occurred inside an unsafe/dangerous region; send to review queue".into(),
+            );
+            (PrimaryLabel::InsideUnsafePanic, 0.92, true)
         }
 
         (true, _, RelationLabel::AfterUnsafe) => {
@@ -277,7 +283,10 @@ fn decide_primary_label(
                     0.86
                 };
 
-                (PrimaryLabel::PanicAfterUnsafe, confidence, false)
+                notes.evidence_summary.push(
+                    "panic occurred after an actionable dangerous site; send to review queue".into(),
+                );
+                (PrimaryLabel::PanicAfterUnsafe, confidence, true)
             } else {
                 notes
                     .fired_rules
@@ -309,7 +318,10 @@ fn decide_primary_label(
 
         (true, _, RelationLabel::FfiBoundary) => {
             notes.fired_rules.push("ffi-boundary-panic".into());
-            (PrimaryLabel::InsideUnsafePanic, 0.90, false)
+            notes.evidence_summary.push(
+                "panic crossed or occurred at an FFI boundary; send to review queue".into(),
+            );
+            (PrimaryLabel::InsideUnsafePanic, 0.90, true)
         }
 
         (_, _, RelationLabel::HarnessMisuse) => {
@@ -324,7 +336,10 @@ fn decide_primary_label(
 
         (true, _, RelationLabel::NoneObserved) => {
             notes.fired_rules.push("contract-panic".into());
-            (PrimaryLabel::ContractPanic, 0.68, true)
+            notes.evidence_summary.push(
+                "panic has no observed dangerous-path relation; keep as classified output but do not send to the main review queue".into(),
+            );
+            (PrimaryLabel::ContractPanic, 0.68, false)
         }
 
         (true, _, RelationLabel::Unknown) => {
