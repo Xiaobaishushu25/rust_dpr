@@ -4,13 +4,21 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from common import ROOT_DIR, ensure_pyyaml, write_json
+from common import ROOT_DIR, SUITES, ensure_pyyaml, write_json
 
 try:
     import yaml  # type: ignore
 except ImportError:  # pragma: no cover
     yaml = None
 
+
+
+def suite_from_crate_root(crate_root: Path) -> str | None:
+    parts = str(crate_root).replace('\\', '/').split('/')
+    for idx, part in enumerate(parts[:-1]):
+        if part == 'benchmarks' and parts[idx + 1] in SUITES:
+            return parts[idx + 1]
+    return None
 
 def find_cases(search_roots: list[Path]) -> list[dict[str, Any]]:
     cases: list[dict[str, Any]] = []
@@ -51,7 +59,10 @@ def main() -> int:
     if not roots:
         roots = [(ROOT_DIR / 'benchmarks').resolve()]
     cases = find_cases(roots)
+    discovered_suites = {suite_from_crate_root((ROOT_DIR / c['crate_root']).resolve() if not Path(c['crate_root']).is_absolute() else Path(c['crate_root']).resolve()) for c in cases}
+    discovered_suites.discard(None)
     payload = {
+        'suite': next(iter(discovered_suites)) if len(discovered_suites) == 1 else 'generated_harness',
         'defaults': {
             'crate_version': '0.1.0',
             'seeds': [int(x.strip()) for x in args.seeds.split(',') if x.strip()],

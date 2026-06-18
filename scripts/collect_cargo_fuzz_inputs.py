@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from common import ROOT_DIR, write_json
+from common import ROOT_DIR, SUITES, write_json
 
 
 def sanitize_id(value: str) -> str:
@@ -67,6 +67,7 @@ def copy_inputs(paths: list[Path], out_dir: Path, *, kind: str) -> list[dict[str
 
 def build_manifest(
     *,
+    suite: str,
     crate: str,
     crate_version: str | None,
     crate_root: Path,
@@ -89,6 +90,8 @@ def build_manifest(
         'producer': 'cargo-fuzz/libFuzzer',
         'consumer_policy': 'inputs-only-no-external-log-evidence',
         'tool': 'cargo-fuzz',
+        'suite': suite,
+        'case': crate,
         'crate': crate,
         'crate_version': crate_version,
         'crate_root': str(crate_root.resolve()),
@@ -123,6 +126,8 @@ def build_manifest(
         'external_schema_version': '0.5.0',
         'tool': 'cargo-fuzz',
         'variant': 'input-producer',
+        'suite': suite,
+        'case': crate,
         'crate': crate,
         'crate_version': crate_version,
         'crate_root': str(crate_root.resolve()),
@@ -149,6 +154,14 @@ def build_manifest(
     return manifest, meta
 
 
+
+def infer_suite_from_crate_root(crate_root: Path) -> str:
+    parts = str(crate_root).replace('\\', '/').split('/')
+    for idx, part in enumerate(parts[:-1]):
+        if part == 'benchmarks' and parts[idx + 1] in SUITES:
+            return parts[idx + 1]
+    return 'generated_harness'
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description='Collect cargo-fuzz corpus/artifacts as input files only, without using cargo-fuzz logs as RustDPR evidence.'
@@ -156,6 +169,7 @@ def main() -> int:
     parser.add_argument('--crate', required=True, help='Logical crate/case name used in reports, e.g. url')
     parser.add_argument('--crate-version', default=None)
     parser.add_argument('--crate-root', required=True, help='Path to the crate that contains fuzz/fuzz_targets/*.rs')
+    parser.add_argument('--suite', choices=SUITES, default=None, help='Benchmark suite carried into downstream RustDPR metrics. Defaults to inferred benchmarks/<suite>/... or generated_harness.')
     parser.add_argument('--target', action='append', default=[], help='cargo-fuzz target name. May be repeated. Defaults to all fuzz_targets/*.rs')
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--run-index', type=int, default=1)
@@ -174,6 +188,7 @@ def main() -> int:
     if not (crate_root / 'Cargo.toml').exists():
         print(f'[error] crate_root has no Cargo.toml: {crate_root}')
         return 2
+    suite = args.suite or infer_suite_from_crate_root(crate_root)
     targets = target_names(crate_root, args.target)
     if not targets:
         print(f'[error] no cargo-fuzz targets found under {crate_root / "fuzz" / "fuzz_targets"}')
@@ -189,6 +204,7 @@ def main() -> int:
             / f'run-{args.run_index}'
         )
         manifest, meta = build_manifest(
+            suite=suite,
             crate=args.crate,
             crate_version=args.crate_version,
             crate_root=crate_root,

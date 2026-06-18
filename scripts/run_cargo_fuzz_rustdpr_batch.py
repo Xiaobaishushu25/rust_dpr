@@ -4,7 +4,7 @@ import argparse
 import subprocess
 from pathlib import Path
 
-from common import ROOT_DIR, read_json
+from common import ROOT_DIR, SUITES, read_json
 
 
 def iter_meta(external_root: Path, crate: str | None, seed: int | None) -> list[Path]:
@@ -70,6 +70,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Batch-run RustDPR validation on collected cargo-fuzz inputs using independent replay evidence by default.')
     parser.add_argument('--crate', default=None)
     parser.add_argument('--crate-root', required=True)
+    parser.add_argument('--suite', choices=SUITES, default='generated_harness', help='Benchmark suite for data/runs output and classification metadata.')
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--variant', default='full')
     parser.add_argument('--limit', type=int, default=None)
@@ -114,7 +115,7 @@ def main() -> int:
         harness_id = str(meta.get('harness_id') or f'target-{idx}')
         seed = int(meta.get('seed') or 0)
         run_index = int(meta.get('run_index') or idx)
-        out_dir = ROOT_DIR / 'data' / 'runs' / 'generated_harness' / crate / 'cargo-fuzz' / args.variant / f'seed-{seed}' / f'run-{run_index}-{harness_id}'
+        out_dir = ROOT_DIR / 'data' / 'runs' / args.suite / crate / 'cargo-fuzz' / args.variant / f'seed-{seed}' / f'run-{run_index}-{harness_id}'
         cmd = [
             'python3',
             'scripts/run_external_output.py',
@@ -124,6 +125,8 @@ def main() -> int:
             str(crate_root),
             '--out-dir',
             str(out_dir),
+            '--suite',
+            args.suite,
             '--tool-override',
             'cargo-fuzz',
             '--variant-override',

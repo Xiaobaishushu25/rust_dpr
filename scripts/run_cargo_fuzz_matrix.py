@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from common import ROOT_DIR, ensure_pyyaml, read_json, write_json
+from common import ROOT_DIR, SUITES, ensure_pyyaml, read_json, write_json
 
 try:
     import yaml  # type: ignore
@@ -104,6 +104,30 @@ def parse_cases(manifest: dict[str, Any]) -> tuple[dict[str, Any], list[CaseSpec
         )
     return defaults, cases
 
+
+
+def suite_from_crate_root(crate_root: str) -> str | None:
+    parts = crate_root.replace('\\', '/').split('/')
+    for idx, part in enumerate(parts[:-1]):
+        if part == 'benchmarks' and parts[idx + 1] in SUITES:
+            return parts[idx + 1]
+    return None
+
+
+def infer_suite(manifest: dict[str, Any], cases: list[CaseSpec], explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    for value in (manifest.get('suite'), (manifest.get('defaults') or {}).get('suite')):
+        if value:
+            suite = str(value)
+            if suite not in SUITES:
+                raise ValueError(f'unsupported suite in manifest: {suite!r}; choices={SUITES}')
+            return suite
+    discovered = {suite_from_crate_root(c.crate_root) for c in cases}
+    discovered.discard(None)
+    if len(discovered) == 1:
+        return discovered.pop()  # type: ignore[return-value]
+    return 'generated_harness'
 
 def py() -> str:
     return sys.executable or 'python3'
@@ -251,6 +275,8 @@ def collect_inputs(case: CaseSpec, seed: int, args: argparse.Namespace, summary:
         str(case.run_index),
         '--budget-seconds',
         str(budget),
+        '--suite',
+        args.suite,
     ]
     add_targets(cmd, case.targets)
     ok, rc, elapsed = run_cmd(cmd, dry_run=args.dry_run, continue_on_error=args.continue_on_error)
@@ -270,6 +296,8 @@ def validate_case(case: CaseSpec, seed: int, args: argparse.Namespace, summary: 
         str(case_root(case)),
         '--seed',
         str(seed),
+        '--suite',
+        args.suite,
         '--variant',
         args.variant,
         '--evidence-mode',
@@ -298,7 +326,7 @@ def materialize_baseline(args: argparse.Namespace, summary: list[dict[str, Any]]
         py(),
         'scripts/materialize_external_baselines.py',
         '--suite',
-        'generated_harness',
+        args.suite,
         '--source-tool',
         'cargo-fuzz',
         '--source-variant',
@@ -314,7 +342,7 @@ def materialize_baseline(args: argparse.Namespace, summary: list[dict[str, Any]]
 
 
 def compute_metrics(args: argparse.Namespace, summary: list[dict[str, Any]]) -> bool:
-    cmd = [py(), 'scripts/compute_metrics.py', '--suite', 'generated_harness', '--out', args.metrics_out]
+    cmd = [py(), 'scripts/compute_metrics.py', '--suite', args.suite, '--out', args.metrics_out]
     ok, rc, elapsed = run_cmd(cmd, dry_run=args.dry_run, continue_on_error=args.continue_on_error)
     record(summary, case=None, seed=None, phase='compute-metrics', cmd=cmd, ok=ok, return_code=rc, elapsed=elapsed)
     return ok
@@ -345,6 +373,7 @@ def compare(args: argparse.Namespace, summary: list[dict[str, Any]]) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description='Run a multi-case cargo-fuzz + RustDPR independent-replay experiment from a manifest.')
     parser.add_argument('--manifest', required=True, help='YAML/JSON file with defaults and cases')
+    parser.add_argument('--suite', choices=SUITES, default=None, help='Benchmark suite for data/runs and metrics. Defaults to manifest.suite, defaults.suite, or inferred from benchmarks/<suite>/... crate_root.')
     parser.add_argument('--phase', choices=['all', 'preflight', 'run-fuzz', 'collect', 'validate', 'baseline', 'metrics', 'compare', 'postprocess'], default='all', help='postprocess = baseline + metrics + compare')
     parser.add_argument('--variant', default='full')
     parser.add_argument('--baseline', default='crash-only')
@@ -372,6 +401,7 @@ def main() -> int:
 
     manifest = load_manifest(Path(args.manifest))
     _, cases = parse_cases(manifest)
+    args.suite = infer_suite(manifest, cases, args.suite)
     cases = [c for c in cases if c.enabled]
     if args.case:
         wanted = set(args.case)
@@ -388,6 +418,7 @@ def main() -> int:
         'phase': args.phase,
         'variant': args.variant,
         'baseline_variant': args.baseline_variant,
+        'suite': args.suite,
         'cases': [c.__dict__ for c in cases],
         'started_at_unix': time.time(),
     }

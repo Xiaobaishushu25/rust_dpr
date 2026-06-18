@@ -6,6 +6,7 @@ from pathlib import Path
 
 from common import (
     ROOT_DIR,
+    SUITES,
     candidate_evidence_grade,
     candidate_id_for_run,
     candidate_is_actionable,
@@ -30,6 +31,7 @@ def main() -> int:
     parser.add_argument("--meta", required=True, help="external run_meta.json")
     parser.add_argument("--crate-root", required=True)
     parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--suite", choices=SUITES, default=None, help="Benchmark suite to write into metadata. Defaults to meta.suite or generated_harness.")
     parser.add_argument("--include-deps", action="store_true")
     parser.add_argument("--dep-crates", default="")
     parser.add_argument("--asan-log", default=None)
@@ -64,6 +66,8 @@ def main() -> int:
     validate_external_meta(meta)
     effective_tool = args.tool_override or meta.get("tool")
     effective_variant = args.variant_override or meta.get("variant", "full")
+    effective_suite = args.suite or meta.get("suite") or "generated_harness"
+    effective_case = meta.get("case") or meta.get("crate") or Path(args.crate_root).resolve().name
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -173,8 +177,8 @@ def main() -> int:
         jsonl_trace_to_tracelog_json(
             Path(trace_path),
             trace_log_json,
-            suite="generated_harness",
-            case_name=meta.get("crate"),
+            suite=effective_suite,
+            case_name=effective_case,
             run_id=f"{effective_tool}/{effective_variant}/{meta.get('harness_id')}/{int(time.time())}",
         )
     else:
@@ -186,8 +190,8 @@ def main() -> int:
             trace_log_json,
             {
                 "schema_version": "0.2.0",
-                "suite": "generated_harness",
-                "case_name": meta.get("crate"),
+                "suite": effective_suite,
+                "case_name": effective_case,
                 "run_id": meta.get("harness_id"),
                 "events": [],
                 "evidence_source": evidence_source,
@@ -312,8 +316,8 @@ def main() -> int:
     merged_meta = dict(meta)
     merged_meta.update(
         {
-            "suite": "generated_harness",
-            "case": crate_root.name,
+            "suite": effective_suite,
+            "case": effective_case,
             "tool": effective_tool,
             "variant": effective_variant,
             "mode": "external-output",
@@ -361,8 +365,8 @@ def main() -> int:
             {
                 "schema_version": "0.1.0",
                 "candidate_id": candidate_id,
-                "suite": "generated_harness",
-                "case": crate_root.name,
+                "suite": effective_suite,
+                "case": effective_case,
                 "tool": effective_tool,
                 "variant": effective_variant,
                 "mode": "external-output",
