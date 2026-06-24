@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -48,11 +49,10 @@ CONFIRMED_ORACLES = {
     "MiriUndefinedBehavior",
 }
 
-NEGATIVE_ORACLES = {
-    # NoOracleFinding is not a proof of safety, but for metrics that explicitly use oracle
-    # verdicts as their truth source it is an assessable negative outcome.
-    "NoOracleFinding",
-}
+# A clean ASan/Miri replay is not proof that a candidate is security-irrelevant.
+# Negative truth must come from adjudicated candidate annotations or controlled
+# benchmark ground truth, never from NoOracleFinding.
+NEGATIVE_ORACLES: set[str] = set()
 
 UNKNOWN_PRIMARY_LABELS = {"Unknown"}
 NON_REPORTED_PRIMARY_LABELS = {"Noise", "Unknown"}
@@ -66,6 +66,99 @@ def div_or_none(num: float, den: float) -> float | None:
 def safe_div(num: float, den: float) -> float:
     """Backward-compatible helper for metrics where an empty denominator means 0."""
     return 0.0 if den == 0 else num / den
+
+
+TRUE_VALUES = {"1", "true", "yes", "y", "positive", "relevant"}
+FALSE_VALUES = {"0", "false", "no", "n", "negative", "irrelevant"}
+
+
+def parse_optional_bool(value: Any) -> bool | None:
+    text = str(value or "").strip().lower()
+    if not text:
+        return None
+    if text in TRUE_VALUES:
+        return True
+    if text in FALSE_VALUES:
+        return False
+    raise ValueError(f"invalid boolean value in candidate truth CSV: {value!r}")
+
+
+def normalize_truth_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    security_relevant = parse_optional_bool(row.get("security_relevant"))
+    if security_relevant is None:
+        return None
+    normalized: dict[str, Any] = {
+        "security_relevant": security_relevant,
+        "truth_source": str(row.get("truth_source") or "candidate-adjudication"),
+        "rationale": str(row.get("rationale") or ""),
+        "candidate_id": str(row.get("candidate_id") or "").strip(),
+        "input_sha256": str(row.get("input_sha256") or "").strip().lower(),
+        "suite": str(row.get("suite") or "").strip(),
+        "case": str(row.get("case") or "").strip(),
+    }
+    for field in ["primary_label", "relation", "harness_status", "oracle_verdict"]:
+        value = str(row.get(field) or "").strip()
+        if value:
+            normalized[field] = value
+    return normalized
+
+
+def load_candidate_truth(path: Path | None) -> dict[str, Any]:
+    index: dict[str, Any] = {
+        "path": str(path.resolve()) if path else None,
+        "by_candidate_id": {},
+        "by_case_sha256": {},
+        "rows_loaded": 0,
+        "rows_skipped_incomplete": 0,
+    }
+    if path is None:
+        return index
+    if not path.exists():
+        raise FileNotFoundError(f"candidate truth CSV not found: {path}")
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        required = {"security_relevant"}
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise RuntimeError(f"candidate truth CSV missing columns: {sorted(missing)}")
+        for raw in reader:
+            normalized = normalize_truth_row(dict(raw))
+            if normalized is None:
+                index["rows_skipped_incomplete"] += 1
+                continue
+            candidate_id = normalized.get("candidate_id")
+            case = normalized.get("case")
+            digest = normalized.get("input_sha256")
+            if not candidate_id and not (case and digest):
+                raise RuntimeError(
+                    "each completed candidate truth row needs candidate_id or both case and input_sha256"
+                )
+            if candidate_id:
+                existing = index["by_candidate_id"].get(candidate_id)
+                if existing is not None and existing["security_relevant"] != normalized["security_relevant"]:
+                    raise RuntimeError(f"conflicting truth rows for candidate_id={candidate_id}")
+                index["by_candidate_id"][candidate_id] = normalized
+            if case and digest:
+                key = (case, digest)
+                existing = index["by_case_sha256"].get(key)
+                if existing is not None and existing["security_relevant"] != normalized["security_relevant"]:
+                    raise RuntimeError(f"conflicting truth rows for case/input_sha256={key}")
+                index["by_case_sha256"][key] = normalized
+            index["rows_loaded"] += 1
+    return index
+
+
+def candidate_truth_for_meta(meta: dict[str, Any], index: dict[str, Any]) -> dict[str, Any] | None:
+    candidate_id = str(meta.get("candidate_id") or "").strip()
+    if candidate_id and candidate_id in index.get("by_candidate_id", {}):
+        return dict(index["by_candidate_id"][candidate_id])
+    case = str(meta.get("case") or meta.get("crate") or "").strip()
+    digest = str(meta.get("input_sha256") or "").strip().lower()
+    if case and digest:
+        match = index.get("by_case_sha256", {}).get((case, digest))
+        if match is not None:
+            return dict(match)
+    return None
 
 
 def load_expected(suite: str, case: str) -> dict[str, Any] | None:
@@ -97,8 +190,15 @@ def load_expected(suite: str, case: str) -> dict[str, Any] | None:
     return None
 
 
-def iter_runs(suite: str) -> list[dict[str, Any]]:
+def iter_runs(
+    suite: str,
+    *,
+    candidate_truth_index: dict[str, Any] | None = None,
+    allow_case_truth_for_candidates: bool = False,
+    run_indices: set[int] | None = None,
+) -> list[dict[str, Any]]:
     rows = []
+    candidate_truth_index = candidate_truth_index or load_candidate_truth(None)
     suite_dir = RUNS_DIR / suite
     if not suite_dir.exists():
         return rows
@@ -114,8 +214,24 @@ def iter_runs(suite: str) -> list[dict[str, Any]]:
         if not meta_path.exists():
             raise RuntimeError(f"run_meta.json not found for run: {run_dir}")
         meta = read_json(meta_path)
+        run_index = int(meta.get("run_index", 1) or 1)
+        if run_indices and run_index not in run_indices:
+            continue
         case = meta["case"]
-        expected = load_expected(suite, case)
+        unit_of_analysis = str(meta.get("unit_of_analysis") or "run")
+        truth_source = None
+        if unit_of_analysis == "candidate":
+            expected = candidate_truth_for_meta(meta, candidate_truth_index)
+            if expected is not None:
+                truth_source = expected.get("truth_source") or "candidate-adjudication"
+            elif allow_case_truth_for_candidates:
+                expected = load_expected(suite, case)
+                truth_source = "legacy-case-truth-for-candidate" if expected is not None else None
+            else:
+                expected = None
+        else:
+            expected = load_expected(suite, case)
+            truth_source = "benchmark-expected-yaml" if expected is not None else None
         rows.append(
             {
                 "suite": suite,
@@ -125,9 +241,46 @@ def iter_runs(suite: str) -> list[dict[str, Any]]:
                 "variant": meta["variant"],
                 "mode": meta.get("mode", "deterministic"),
                 "seed": meta["seed"],
-                "run_index": meta["run_index"],
+                "run_index": run_index,
+                "unit_of_analysis": unit_of_analysis,
                 "classification": classification,
                 "expected": expected,
+                "truth_source": truth_source,
+                "meta": meta,
+            }
+        )
+    return rows
+
+
+def iter_campaign_records(suite: str, *, run_indices: set[int] | None = None) -> list[dict[str, Any]]:
+    """Load campaign observations, including seeds that produced zero artifacts.
+
+    These records contribute only to campaign support and CPU-hour/yield
+    denominators. They are never treated as classified candidates.
+    """
+    rows: list[dict[str, Any]] = []
+    suite_dir = RUNS_DIR / suite
+    if not suite_dir.exists():
+        return rows
+    for path in sorted(suite_dir.rglob("campaign_record.json")):
+        meta = read_json(path)
+        run_index = int(meta.get("run_index", 1) or 1)
+        if run_indices and run_index not in run_indices:
+            continue
+        rows.append(
+            {
+                "suite": suite,
+                "case": meta.get("case") or meta.get("crate") or "unknown",
+                "run_dir": str(path.parent),
+                "tool": meta.get("tool", "unknown"),
+                "variant": meta.get("variant", "unknown"),
+                "mode": meta.get("mode", "campaign"),
+                "seed": meta.get("seed", 0),
+                "run_index": run_index,
+                "unit_of_analysis": "campaign",
+                "classification": {},
+                "expected": None,
+                "truth_source": None,
                 "meta": meta,
             }
         )
@@ -252,6 +405,9 @@ def has_independent_trace_evidence(row: dict[str, Any]) -> bool:
     if trace and len(trace.get("events") or []) > 0:
         return True
     meta = row.get("meta") or {}
+    if str(meta.get("unit_of_analysis") or row.get("unit_of_analysis") or "run") == "candidate":
+        # Candidate-level experiments must never fall back to an aggregate trace.
+        return safe_int(meta.get("replay_trace_events"), 0) > 0
     if safe_int(meta.get("replay_combined_trace_events"), 0) > 0:
         return True
     replay = replay_summary_for_row(row) or {}
@@ -544,7 +700,28 @@ def duplicate_collapse_ratio(rows: list[dict[str, Any]]) -> float:
 
 
 def cpu_hours_for_rows(rows: list[dict[str, Any]]) -> float:
-    seconds = sum(safe_float((row.get("meta") or {}).get("budget_seconds"), 0.0) for row in rows)
+    """Return campaign CPU-hours without charging the same fuzz budget per artifact.
+
+    Candidate-level cargo-fuzz runs produce one metrics row per artifact, but all
+    artifacts from a seed/run share one campaign budget. We therefore deduplicate
+    by campaign_id and charge the maximum recorded campaign budget once.
+    """
+    campaign_seconds: dict[str, float] = {}
+    ungrouped_seconds = 0.0
+    for row in rows:
+        meta = row.get("meta") or {}
+        budget = safe_float(
+            meta.get("campaign_budget_seconds")
+            or meta.get("fuzz_budget_seconds")
+            or meta.get("budget_seconds"),
+            0.0,
+        )
+        campaign_id = str(meta.get("campaign_id") or "").strip()
+        if campaign_id:
+            campaign_seconds[campaign_id] = max(campaign_seconds.get(campaign_id, 0.0), budget)
+        else:
+            ungrouped_seconds += budget
+    seconds = sum(campaign_seconds.values()) + ungrouped_seconds
     if seconds <= 0.0:
         seconds = sum(oracle_budget_for_row(row)[1] for row in rows)
     return seconds / 3600.0
@@ -611,14 +788,47 @@ def support_entry(
 
 
 def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    total = len(rows)
-    missing_evidence = [r for r in rows if has_missing_replay_evidence(r)]
-    evidence_rows = [r for r in rows if not has_missing_replay_evidence(r)]
-    trace_rows = [r for r in rows if has_independent_trace_evidence(r)]
+    campaign_rows = [r for r in rows if str(r.get("unit_of_analysis") or "run") == "campaign"]
+    observation_rows = [r for r in rows if str(r.get("unit_of_analysis") or "run") != "campaign"]
+    total = len(observation_rows)
+    missing_evidence = [r for r in observation_rows if has_missing_replay_evidence(r)]
+    evidence_rows = [r for r in observation_rows if not has_missing_replay_evidence(r)]
+    trace_rows = [r for r in observation_rows if has_independent_trace_evidence(r)]
+    candidate_rows = [
+        r for r in observation_rows if str(r.get("unit_of_analysis") or "run") == "candidate"
+    ]
+
+    def candidate_truth_key(row: dict[str, Any]) -> str:
+        # Count the same artifact content once across repeated campaigns.  The
+        # adjudication template is keyed by case + full SHA-256 for the same
+        # reason.  candidate_id remains the fallback for legacy rows without a
+        # digest.
+        meta = row.get("meta") or {}
+        case = str(row.get("case") or meta.get("case") or meta.get("crate") or "")
+        digest = str(meta.get("input_sha256") or "").strip().lower()
+        if case and digest:
+            return f"{case}:{digest}"
+        return str(
+            meta.get("candidate_id")
+            or f"{case}:{meta.get('input_id') or row.get('run_dir')}"
+        )
+
+    unique_candidate_keys = {candidate_truth_key(row) for row in candidate_rows}
+    unique_annotated_candidate_keys = {
+        candidate_truth_key(row) for row in candidate_rows if row.get("expected") is not None
+    }
+    campaign_ids = {
+        str((row.get("meta") or {}).get("campaign_id"))
+        for row in rows
+        if (row.get("meta") or {}).get("campaign_id")
+    }
+    truth_source_counts = Counter(
+        str(row.get("truth_source") or "unassessable") for row in observation_rows
+    )
 
     # All classified/reported outputs are useful diagnostics, but RustDPR's main
     # triage precision/FPR should be computed over the review queue only.
-    reported = [r for r in rows if is_reported_candidate(r)]
+    reported = [r for r in observation_rows if is_reported_candidate(r)]
     reported_assessable = [r for r in reported if truth_status(r) is not None]
     reported_truth_positive = [r for r in reported_assessable if truth_status(r) is True]
     reported_truth_negative = [r for r in reported_assessable if truth_status(r) is False]
@@ -641,12 +851,12 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     oracle_confirmed = [r for r in evidence_rows if r["classification"].get("oracle_verdict") in CONFIRMED_ORACLES]
     review_required = review_queue
 
-    label_counts = Counter(r["classification"].get("primary_label") for r in rows)
-    relation_counts = Counter(r["classification"].get("relation") for r in rows)
-    oracle_counts = Counter(r["classification"].get("oracle_verdict") for r in rows)
-    harness_counts = Counter(r["classification"].get("harness_status") for r in rows)
+    label_counts = Counter(r["classification"].get("primary_label") for r in observation_rows)
+    relation_counts = Counter(r["classification"].get("relation") for r in observation_rows)
+    oracle_counts = Counter(r["classification"].get("oracle_verdict") for r in observation_rows)
+    harness_counts = Counter(r["classification"].get("harness_status") for r in observation_rows)
 
-    expected_available = [r for r in rows if r.get("expected")]
+    expected_available = [r for r in observation_rows if r.get("expected")]
     security_relevant_expected = [r for r in expected_available if r["expected"].get("security_relevant")]
     true_meaningful_all_classified = [r for r in security_relevant_expected if is_reported_candidate(r)]
     true_meaningful_review_queue = [r for r in security_relevant_expected if is_review_queue_candidate(r)]
@@ -656,49 +866,62 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     ttds_values = [v for v in ttds_values if v is not None]
 
     replay_summaries = []
-    for r in rows:
+    for r in observation_rows:
         replay = replay_summary_for_row(r)
         if replay:
             replay_summaries.append(replay)
     reproducible = [x for x in replay_summaries if x.get("stable") or x.get("replay_stable")]
 
-    raw_panic_count = sum(int((r.get("meta") or {}).get("raw_panic_count", 0) or 0) for r in rows)
-    raw_crash_count = sum(int((r.get("meta") or {}).get("raw_crash_count", 0) or 0) for r in rows)
-    unsafe_hit_count = sum(int((r.get("meta") or {}).get("unsafe_hit_count", 0) or 0) for r in rows)
+    raw_count_rows = campaign_rows if campaign_rows else observation_rows
+    raw_panic_count = sum(
+        int((r.get("meta") or {}).get("raw_panic_count", 0) or 0) for r in raw_count_rows
+    )
+    raw_crash_count = sum(
+        int((r.get("meta") or {}).get("raw_crash_count", 0) or 0) for r in raw_count_rows
+    )
+    unsafe_hit_count = sum(
+        int((r.get("meta") or {}).get("unsafe_hit_count", 0) or 0) for r in observation_rows
+    )
     harness_misuse = [
         r
         for r in evidence_rows
         if r["classification"].get("harness_status") in {"LikelyMisuse", "Invalid"}
         or r["classification"].get("primary_label") == "HarnessMisuse"
     ]
-    reviews_first = reviews_to_first_confirmed(rows)
+    reviews_first = reviews_to_first_confirmed(observation_rows)
     actionable = [r for r in evidence_rows if candidate_is_actionable(r["classification"])]
     oracle_budget_rows = [oracle_budget_for_row(r) for r in evidence_rows]
     oracle_runs_total = sum(x[0] for x in oracle_budget_rows)
     oracle_cpu_total = sum(x[1] for x in oracle_budget_rows)
-    cpu_hours = cpu_hours_for_rows(evidence_rows)
-    ttae_ms = time_to_first_actionable_ms(rows)
-    ttoc_ms = time_to_first_oracle_confirmed_ms(rows)
+    cpu_hours = cpu_hours_for_rows(rows)
+    ttae_ms = time_to_first_actionable_ms(observation_rows)
+    ttoc_ms = time_to_first_oracle_confirmed_ms(observation_rows)
 
-    precision1 = precision_at_k(rows, 1)
-    precision3 = precision_at_k(rows, 3)
-    precision5 = precision_at_k(rows, 5)
-    precision10 = precision_at_k(rows, 10)
-    recall10 = recall_at_k(rows, 10)
-    ndcg10 = ndcg_at_k(rows, 10)
-    mrr = mean_reciprocal_rank(rows)
-    oc1 = oracle_confirmed_at_k(rows, 1)
-    oc5 = oracle_confirmed_at_k(rows, 5)
-    oc10 = oracle_confirmed_at_k(rows, 10)
+    precision1 = precision_at_k(observation_rows, 1)
+    precision3 = precision_at_k(observation_rows, 3)
+    precision5 = precision_at_k(observation_rows, 5)
+    precision10 = precision_at_k(observation_rows, 10)
+    recall10 = recall_at_k(observation_rows, 10)
+    ndcg10 = ndcg_at_k(observation_rows, 10)
+    mrr = mean_reciprocal_rank(observation_rows)
+    oc1 = oracle_confirmed_at_k(observation_rows, 1)
+    oc5 = oracle_confirmed_at_k(observation_rows, 5)
+    oc10 = oracle_confirmed_at_k(observation_rows, 10)
 
-    p1_counts = precision_at_k_counts(rows, 1)
-    p5_counts = precision_at_k_counts(rows, 5)
-    p10_counts = precision_at_k_counts(rows, 10)
-    r10_counts = recall_at_k_counts(rows, 10)
-    ndcg10_support = ndcg_at_k_support(rows, 10)
-    assessable_rank_rows = ranked_assessable_rows(rows)
+    p1_counts = precision_at_k_counts(observation_rows, 1)
+    p5_counts = precision_at_k_counts(observation_rows, 5)
+    p10_counts = precision_at_k_counts(observation_rows, 10)
+    r10_counts = recall_at_k_counts(observation_rows, 10)
+    ndcg10_support = ndcg_at_k_support(observation_rows, 10)
+    assessable_rank_rows = ranked_assessable_rows(observation_rows)
 
     support = {
+        "candidate_truth_coverage": support_entry(
+            numerator=len(unique_annotated_candidate_keys),
+            denominator=len(unique_candidate_keys),
+            included_runs=len(candidate_rows),
+            note="unique candidate artifacts with adjudicated truth; case-level truth is excluded by default",
+        ),
         "mcp": support_entry(
             numerator=len(review_truth_positive),
             denominator=len(review_assessable),
@@ -742,6 +965,12 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "oracle_confirmed_per_reported": support_entry(numerator=len(oracle_confirmed), denominator=len(reported), included_runs=len(reported), excluded_missing_evidence=len(missing_evidence)),
         "oracle_confirmed_per_review_queue": support_entry(numerator=len([r for r in review_queue if candidate_is_oracle_confirmed(r["classification"])]), denominator=len(review_queue), included_runs=len(review_queue), excluded_missing_evidence=len(missing_evidence)),
         "review_load": support_entry(numerator=len(review_required), denominator=len(evidence_rows), included_runs=len(evidence_rows), excluded_missing_evidence=len(missing_evidence)),
+        "reproducibility_rate": support_entry(
+            numerator=len(reproducible),
+            denominator=len(replay_summaries),
+            included_runs=len(replay_summaries),
+            note="candidate is stable only when every configured replay is non-zero, emits independent RustDPR trace evidence, and uses one stable exit code",
+        ),
         "harness_misuse_rejection_rate": support_entry(numerator=len(harness_misuse), denominator=len(evidence_rows), included_runs=len(evidence_rows), excluded_missing_evidence=len(missing_evidence)),
         "review_queue_recall": support_entry(numerator=len(security_relevant_reviewed), denominator=len(security_relevant_truth_rows), included_runs=len(security_relevant_truth_rows), excluded_missing_evidence=len(missing_evidence), note="truth-positive evidence-supported runs retained in the review queue"),
         "security_relevant_recall": support_entry(numerator=len(security_relevant_reviewed), denominator=len(security_relevant_truth_rows), included_runs=len(security_relevant_truth_rows), excluded_missing_evidence=len(missing_evidence), note="MAIN recall uses the review queue; see security_relevant_recall_all_classified_diagnostic for the old all-classified recall"),
@@ -759,6 +988,19 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "total_runs": total,
+        "total_records": len(rows),
+        "campaign_records": len(campaign_rows),
+        "unit_of_analysis": (
+            "candidate"
+            if candidate_rows and len(candidate_rows) == total
+            else "mixed-or-run"
+        ),
+        "candidate_rows": len(candidate_rows),
+        "unique_candidates": len(unique_candidate_keys),
+        "truth_annotated_unique_candidates": len(unique_annotated_candidate_keys),
+        "candidate_truth_coverage": div_or_none(len(unique_annotated_candidate_keys), len(unique_candidate_keys)),
+        "campaigns_represented": len(campaign_ids),
+        "truth_source_counts": dict(truth_source_counts),
         "evidence_supported_runs": len(evidence_rows),
         "missing_evidence_runs": len(missing_evidence),
         "independent_trace_runs": len(trace_rows),
@@ -816,7 +1058,7 @@ def compute_group_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "oracle_cpu_seconds": oracle_cpu_total,
         "obe": div_or_none(len(oracle_confirmed), oracle_runs_total),
         "obe_per_cpu_minute": div_or_none(len(oracle_confirmed), oracle_cpu_total / 60.0),
-        "duplicate_collapse_ratio": duplicate_collapse_ratio(rows),
+        "duplicate_collapse_ratio": duplicate_collapse_ratio(observation_rows),
         "cpu_hours_observed": cpu_hours,
         "actionable_yield_per_cpu_hour": div_or_none(len(actionable), cpu_hours),
         "oracle_confirmed_yield_per_cpu_hour": div_or_none(len(oracle_confirmed), cpu_hours),
@@ -837,9 +1079,35 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--suite", choices=SUITES, required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument(
+        "--candidate-truth",
+        default=None,
+        help="Adjudicated candidate-level truth CSV. Required for paper-facing MCP/FPR over fuzz artifacts.",
+    )
+    parser.add_argument(
+        "--allow-case-truth-for-candidates",
+        action="store_true",
+        help="Legacy/debug only: apply one case-level expected.yaml label to every candidate artifact.",
+    )
+    parser.add_argument(
+        "--run-index",
+        action="append",
+        type=int,
+        default=[],
+        help="Only aggregate these run indices. Repeatable. Omit only when the results directory contains one experiment.",
+    )
     args = parser.parse_args()
 
-    rows = iter_runs(args.suite)
+    run_indices = set(args.run_index) if args.run_index else None
+    candidate_truth_path = Path(args.candidate_truth).resolve() if args.candidate_truth else None
+    candidate_truth_index = load_candidate_truth(candidate_truth_path)
+    rows = iter_runs(
+        args.suite,
+        candidate_truth_index=candidate_truth_index,
+        allow_case_truth_for_candidates=args.allow_case_truth_for_candidates,
+        run_indices=run_indices,
+    )
+    rows.extend(iter_campaign_records(args.suite, run_indices=run_indices))
     by_tool_variant: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     by_tool_variant_mode: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -847,10 +1115,19 @@ def main() -> int:
         by_tool_variant_mode[(row["tool"], row["variant"], row.get("mode", "deterministic"))].append(row)
 
     result = {
-        "schema_version": "0.2.0",
+        "schema_version": "0.3.0",
         "suite": args.suite,
+        "run_index_filter": sorted(run_indices) if run_indices else None,
+        "candidate_truth": {
+            "path": candidate_truth_index.get("path"),
+            "rows_loaded": candidate_truth_index.get("rows_loaded", 0),
+            "rows_skipped_incomplete": candidate_truth_index.get("rows_skipped_incomplete", 0),
+            "allow_case_truth_for_candidates": args.allow_case_truth_for_candidates,
+        },
         "runs_dir": str(RUNS_DIR / args.suite),
-        "total_runs": len(rows),
+        "total_records": len(rows),
+        "total_runs": sum(1 for row in rows if row.get("unit_of_analysis") != "campaign"),
+        "campaign_records": sum(1 for row in rows if row.get("unit_of_analysis") == "campaign"),
         "metric_semantics": {
             "mcp": "MAIN: truth-based precision over review_required candidates with expected.yaml or oracle truth; primary_label alone is not truth",
             "mcp_all_classified_diagnostic": "DIAGNOSTIC: truth-based precision over all non-noise/non-unknown classified outputs",
@@ -858,6 +1135,10 @@ def main() -> int:
             "panic_noise_fpr_all_classified_diagnostic": "DIAGNOSTIC: all-classified false positives over assessable truth-negative/noise cases",
             "review_queue_recall": "Security-relevant recall over the review queue",
             "missing_evidence_runs": "runs where RustDPR independent replay did not produce trace evidence; these are unsupported, not Noise",
+            "candidate_truth_coverage": "unique candidate artifacts with adjudicated truth divided by all unique candidate artifacts",
+            "truth_policy": "candidate rows use candidate-level adjudication; NoOracleFinding is unassessable, not negative truth",
+            "cpu_hours_observed": "candidate rows are deduplicated by campaign_id so one fuzz budget is charged once per seed/run",
+            "campaign_records": "zero-artifact campaigns are persisted separately and affect campaign/CPU-hour support, never candidate precision/FPR",
             "ttae_ms": "relative time-to-first-actionable evidence; epoch-like wall-clock timestamps are discarded if no origin is known",
         },
         "overall": compute_group_metrics(rows),

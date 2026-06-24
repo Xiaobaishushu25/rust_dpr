@@ -24,6 +24,42 @@ from common import (
 )
 
 
+def trace_input_ids(trace_data: dict) -> set[str]:
+    """Collect non-empty input IDs from externally tagged TraceEvent objects."""
+    observed: set[str] = set()
+    for event in trace_data.get("events", []) or []:
+        if not isinstance(event, dict):
+            continue
+        payload = event
+        for kind in ("EnterFunction", "ExitFunction", "Hit", "Panic", "OracleMarker"):
+            candidate = event.get(kind)
+            if isinstance(candidate, dict):
+                payload = candidate
+                break
+        value = payload.get("input_id") if isinstance(payload, dict) else None
+        if value is not None and str(value).strip():
+            observed.add(str(value).strip())
+    return observed
+
+
+def validate_candidate_trace_identity(meta: dict, trace_log_json: Path) -> None:
+    """Reject traces that contain events attributed to another candidate input."""
+    if meta.get("unit_of_analysis") != "candidate":
+        return
+    trace_data = read_json(trace_log_json)
+    observed = trace_input_ids(trace_data)
+    expected = str(meta.get("input_id") or "").strip()
+    if len(observed) > 1:
+        raise RuntimeError(
+            f"candidate trace contains multiple input_id values {sorted(observed)}; "
+            "refusing cross-input classification"
+        )
+    if expected and observed and observed != {expected}:
+        raise RuntimeError(
+            f"candidate trace input_id mismatch: expected {expected!r}, observed {sorted(observed)!r}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate one upstream fuzzing output with RustDPR"
@@ -64,6 +100,15 @@ def main() -> int:
 
     meta = read_json(Path(args.meta))
     validate_external_meta(meta)
+    if meta.get("classification_forbidden"):
+        reason = meta.get("classification_forbidden_reason") or "aggregate metadata spans multiple inputs"
+        print(f"[error] refusing to classify aggregate metadata: {reason}")
+        return 2
+    if meta.get("unit_of_analysis") == "candidate":
+        input_files = list(meta.get("input_files") or [])
+        if len(input_files) != 1 or not meta.get("input_id"):
+            print("[error] candidate metadata must contain exactly one input file and a non-empty input_id")
+            return 2
     effective_tool = args.tool_override or meta.get("tool")
     effective_variant = args.variant_override or meta.get("variant", "full")
     effective_suite = args.suite or meta.get("suite") or "generated_harness"
@@ -179,8 +224,9 @@ def main() -> int:
             trace_log_json,
             suite=effective_suite,
             case_name=effective_case,
-            run_id=f"{effective_tool}/{effective_variant}/{meta.get('harness_id')}/{int(time.time())}",
+            run_id=str(meta.get("candidate_id") or f"{effective_tool}/{effective_variant}/{meta.get('harness_id')}/{meta.get('input_id') or int(time.time())}"),
         )
+        validate_candidate_trace_identity(meta, trace_log_json)
     else:
         evidence_source["missing_independent_trace"] = args.evidence_mode == "rustdpr-replay"
         evidence_source["notes"].append(
@@ -325,8 +371,14 @@ def main() -> int:
             "evidence_source": evidence_source,
             "external_log_used_by_rustdpr": False,
             "seed": meta.get("seed"),
-            "run_index": 1,
+            "run_index": int(meta.get("run_index") or 1),
+            "unit_of_analysis": meta.get("unit_of_analysis", "run"),
+            "campaign_id": meta.get("campaign_id"),
+            "campaign_budget_seconds": meta.get("campaign_budget_seconds", meta.get("fuzz_budget_seconds", 0)),
             "budget_seconds": meta.get("fuzz_budget_seconds", 0),
+            "candidate_id": meta.get("candidate_id"),
+            "input_id": meta.get("input_id"),
+            "input_sha256": meta.get("input_sha256"),
             "include_deps": args.include_deps,
             "dep_crates": args.dep_crates,
             "out_dir": str(out_dir),
@@ -351,7 +403,20 @@ def main() -> int:
     trace_times = first_trace_times(trace_data, dangerous_ids)
     reached = classification.get("reached_dangerous_sites") or []
     replay_stable = bool(classification.get("replay_stable", False))
+    if args.replay_summary and Path(args.replay_summary).exists():
+        replay_data = read_json(Path(args.replay_summary))
+        replay_stable = bool(replay_data.get("stable") or replay_data.get("replay_stable"))
     candidate_id = candidate_id_for_run(merged_meta, out_dir)
+    classification.update(
+        {
+            "candidate_id": candidate_id,
+            "input_id": meta.get("input_id"),
+            "input_sha256": meta.get("input_sha256"),
+            "campaign_id": meta.get("campaign_id"),
+            "replay_stable": replay_stable,
+        }
+    )
+    write_json(classification_json, classification)
     score_breakdown = candidate_score_components(
         classification,
         reached_count=len(reached),
@@ -371,9 +436,11 @@ def main() -> int:
                 "variant": effective_variant,
                 "mode": "external-output",
                 "seed": meta.get("seed"),
-                "run_index": 1,
+                "run_index": int(meta.get("run_index") or 1),
+                "campaign_id": meta.get("campaign_id"),
                 "harness_id": meta.get("harness_id"),
                 "input_id": meta.get("input_id"),
+                "input_sha256": meta.get("input_sha256"),
                 "primary_label": classification.get("primary_label"),
                 "relation": classification.get("relation"),
                 "harness_status": classification.get("harness_status"),
@@ -394,6 +461,8 @@ def main() -> int:
             }
         ],
     )
+    merged_meta["candidate_id"] = candidate_id
+    merged_meta["replay_stable"] = replay_stable
     merged_meta["candidates_path"] = str(candidates_jsonl)
     write_json(run_meta_json, merged_meta)
     print(f"[done] classification: {classification_json}")

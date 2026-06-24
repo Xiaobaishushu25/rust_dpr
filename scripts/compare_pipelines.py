@@ -9,10 +9,12 @@ from common import read_json, write_csv, write_json
 
 # Metric direction: True means larger is better; False means smaller is better.
 METRICS: list[tuple[str, bool, str]] = [
+    ("candidate_truth_coverage", True, "Unique candidate artifacts with adjudicated truth"),
     ("mcp", True, "MAIN review-queue MCP, truth-based"),
     ("panic_noise_fpr", False, "MAIN review-queue panic-noise FPR"),
     ("review_queue_recall", True, "Review-queue recall against truth-positive cases"),
     ("review_load", False, "Manual review load per evidence-supported run"),
+    ("reproducibility_rate", True, "Replay-stable candidate rate"),
     ("mcp_all_classified_diagnostic", True, "Diagnostic all-classified truth-based MCP"),
     ("panic_noise_fpr_all_classified_diagnostic", False, "Diagnostic all-classified panic-noise FPR"),
     ("label_mcp_diagnostic", True, "Diagnostic label-MCP, not a fair baseline truth metric"),
@@ -279,6 +281,11 @@ def main() -> int:
         "metric_semantics": metrics.get("metric_semantics", {}),
         "baseline_group_summary": {
             "total_runs": baseline.get("total_runs"),
+            "unit_of_analysis": baseline.get("unit_of_analysis"),
+            "unique_candidates": baseline.get("unique_candidates"),
+            "truth_annotated_unique_candidates": baseline.get("truth_annotated_unique_candidates"),
+            "candidate_truth_coverage": baseline.get("candidate_truth_coverage"),
+            "campaigns_represented": baseline.get("campaigns_represented"),
             "evidence_supported_runs": baseline.get("evidence_supported_runs"),
             "missing_evidence_runs": baseline.get("missing_evidence_runs"),
             "reported_candidates": baseline.get("reported_candidates"),
@@ -290,6 +297,11 @@ def main() -> int:
         },
         "treatment_group_summary": {
             "total_runs": treatment.get("total_runs"),
+            "unit_of_analysis": treatment.get("unit_of_analysis"),
+            "unique_candidates": treatment.get("unique_candidates"),
+            "truth_annotated_unique_candidates": treatment.get("truth_annotated_unique_candidates"),
+            "candidate_truth_coverage": treatment.get("candidate_truth_coverage"),
+            "campaigns_represented": treatment.get("campaigns_represented"),
             "evidence_supported_runs": treatment.get("evidence_supported_runs"),
             "missing_evidence_runs": treatment.get("missing_evidence_runs"),
             "reported_candidates": treatment.get("reported_candidates"),

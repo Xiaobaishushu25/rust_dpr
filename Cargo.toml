@@ -115,6 +115,16 @@ members = [
 #    "benchmarks/regression/rsec_bra_2021_0008_fixed",
 ]
 exclude = [
+  # Fixed regression controls intentionally kept out of the development
+  # workspace are built through their own fuzz workspaces and matrix entries.
+  "benchmarks/regression/rsec_direct_ring_buffer_2025_0105_fixed",
+  "benchmarks/regression/rsec_scratchpad_2021_0030_fixed",
+  "benchmarks/regression/rsec_stack_dst_2021_0033_fixed",
+  "benchmarks/regression/rsec_qwutils_2021_0018_fixed",
+  "benchmarks/regression/rsec_ms3d_2021_0016_fixed",
+  "benchmarks/regression/rsec_cdr_2021_0012_fixed",
+  "benchmarks/regression/rsec_bra_2021_0008_fixed",
+
   "benchmarks/micro/mb_panic_after_unsafe/fuzz",
   "benchmarks/micro/mb_drop_then_panic/fuzz",
   "benchmarks/micro/mb_panic_before_unsafe/fuzz",

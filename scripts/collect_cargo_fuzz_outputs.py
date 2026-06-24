@@ -108,7 +108,10 @@ def build_meta(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description='Collect existing official cargo-fuzz outputs into RustDPR external-run metadata.'
+        description=(
+            'LEGACY/debug collector for shared fuzz/artifacts and fuzz/corpus directories. '
+            'Paper runs must use collect_cargo_fuzz_inputs.py with --run-summary.'
+        )
     )
     parser.add_argument('--crate', required=True, help='Logical crate/case name used in reports, e.g. url')
     parser.add_argument('--crate-version', default=None)
@@ -121,7 +124,20 @@ def main() -> int:
     parser.add_argument('--trace-dir', default=None, help='Optional directory containing <target>.trace.jsonl')
     parser.add_argument('--coverage-dir', default=None, help='Optional directory containing <target>.coverage.json')
     parser.add_argument('--out-root', default=str(ROOT_DIR / 'data' / 'external_runs' / 'cargo-fuzz'))
+    parser.add_argument(
+        '--allow-legacy-shared-state',
+        action='store_true',
+        help='Acknowledge that shared cargo-fuzz state is not suitable for paper-facing independent seed runs.',
+    )
     args = parser.parse_args()
+
+    if not args.allow_legacy_shared_state:
+        print(
+            '[error] this legacy collector reads mutable fuzz/artifacts and fuzz/corpus directories. '
+            'Use collect_cargo_fuzz_inputs.py --run-summary <isolated-summary.json>, or pass '
+            '--allow-legacy-shared-state for debugging only.'
+        )
+        return 2
 
     crate_root = Path(args.crate_root).resolve()
     targets = target_names(crate_root, args.target)

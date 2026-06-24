@@ -54,21 +54,27 @@ compare-rulf-rustdpr:
 CRATE_ROOT ?=
 CARGO_FUZZ_TARGET ?=
 CARGO_FUZZ_LOG_DIR ?= reports/cargo_fuzz_logs
+CARGO_FUZZ_SEED ?= 1
+CARGO_FUZZ_RUN_INDEX ?= 1
+CARGO_FUZZ_REPLAY_REPEAT ?= 1
+CARGO_FUZZ_CAMPAIGN_ROOT ?= data/cargo_fuzz_campaigns/$(CRATE)
+CARGO_FUZZ_RUN_SUMMARY ?= $(CARGO_FUZZ_LOG_DIR)/summary.json
+CANDIDATE_TRUTH ?=
 
 run-cargo-fuzz:
-	python3 scripts/run_cargo_fuzz_pilot.py --crate-root $(CRATE_ROOT) $(if $(CARGO_FUZZ_TARGET),--target $(CARGO_FUZZ_TARGET),) --budget-seconds $(FUZZ_BUDGET_SECONDS) --seed 1 --log-dir $(CARGO_FUZZ_LOG_DIR) --summary-json reports/cargo_fuzz_run_summary.json
+	python3 scripts/run_cargo_fuzz_pilot.py --crate-root $(CRATE_ROOT) $(if $(CARGO_FUZZ_TARGET),--target $(CARGO_FUZZ_TARGET),) --budget-seconds $(FUZZ_BUDGET_SECONDS) --seed $(CARGO_FUZZ_SEED) --run-index $(CARGO_FUZZ_RUN_INDEX) --campaign-root $(CARGO_FUZZ_CAMPAIGN_ROOT) --log-dir $(CARGO_FUZZ_LOG_DIR) --summary-json $(CARGO_FUZZ_RUN_SUMMARY)
 
 collect-cargo-fuzz:
-	python3 scripts/collect_cargo_fuzz_outputs.py --crate $(CRATE) --crate-version "$(CRATE_VERSION)" --crate-root $(CRATE_ROOT) $(if $(CARGO_FUZZ_TARGET),--target $(CARGO_FUZZ_TARGET),) --seed 1 --budget-seconds $(FUZZ_BUDGET_SECONDS) --log-dir $(CARGO_FUZZ_LOG_DIR)
+	python3 scripts/collect_cargo_fuzz_inputs.py --crate $(CRATE) --crate-version "$(CRATE_VERSION)" --crate-root $(CRATE_ROOT) $(if $(CARGO_FUZZ_TARGET),--target $(CARGO_FUZZ_TARGET),) --suite $(SUITE) --seed $(CARGO_FUZZ_SEED) --run-index $(CARGO_FUZZ_RUN_INDEX) --budget-seconds $(FUZZ_BUDGET_SECONDS) --run-summary $(CARGO_FUZZ_RUN_SUMMARY)
 
 run-cargo-fuzz-rustdpr:
-	python3 scripts/run_cargo_fuzz_rustdpr_batch.py --crate $(CRATE) --crate-root $(CRATE_ROOT) --variant full $(if $(LIMIT),--limit $(LIMIT),)
+	python3 scripts/run_cargo_fuzz_rustdpr_batch.py --crate $(CRATE) --crate-root $(CRATE_ROOT) --suite $(SUITE) --seed $(CARGO_FUZZ_SEED) --run-index $(CARGO_FUZZ_RUN_INDEX) $(if $(CARGO_FUZZ_TARGET),--target $(CARGO_FUZZ_TARGET),) --variant full --input-kind artifacts --replay-repeat $(CARGO_FUZZ_REPLAY_REPEAT) $(if $(LIMIT),--limit $(LIMIT),)
 
 materialize-cargo-fuzz-baselines:
-	python3 scripts/materialize_external_baselines.py --suite generated_harness --source-tool cargo-fuzz --source-variant full --baseline crash-only --out-variant crash-only
+	python3 scripts/materialize_external_baselines.py --suite $(SUITE) --source-tool cargo-fuzz --source-variant full --baseline crash-only --out-variant crash-only
 
 compare-cargo-fuzz-rustdpr: materialize-cargo-fuzz-baselines
-	python3 scripts/compute_metrics.py --suite generated_harness --out reports/metrics_generated_harness.json
-	python3 scripts/compare_pipelines.py --metrics reports/metrics_generated_harness.json --baseline cargo-fuzz/crash-only --treatment cargo-fuzz/full --out-json reports/cargo_fuzz_vs_rustdpr_delta.json --out-csv reports/cargo_fuzz_vs_rustdpr_delta.csv --out-md reports/cargo_fuzz_vs_rustdpr_delta.md
+	python3 scripts/compute_metrics.py --suite $(SUITE) --out reports/metrics_$(SUITE)_cargo_fuzz.json $(if $(CANDIDATE_TRUTH),--candidate-truth $(CANDIDATE_TRUTH),)
+	python3 scripts/compare_pipelines.py --metrics reports/metrics_$(SUITE)_cargo_fuzz.json --baseline cargo-fuzz/crash-only --treatment cargo-fuzz/full --out-json reports/cargo_fuzz_vs_rustdpr_delta.json --out-csv reports/cargo_fuzz_vs_rustdpr_delta.csv --out-md reports/cargo_fuzz_vs_rustdpr_delta.md
 
 cargo-fuzz-pilot-compare: run-cargo-fuzz collect-cargo-fuzz run-cargo-fuzz-rustdpr compare-cargo-fuzz-rustdpr

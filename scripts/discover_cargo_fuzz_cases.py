@@ -51,8 +51,15 @@ def main() -> int:
     parser.add_argument('--out', default=str(ROOT_DIR / 'scripts' / 'cargo_fuzz_matrix.generated.yaml'))
     parser.add_argument('--seeds', default='1,2,3')
     parser.add_argument('--budget-seconds', type=int, default=60)
-    parser.add_argument('--replay-limit', type=int, default=20)
-    parser.add_argument('--input-kind', choices=['artifacts', 'corpus', 'all'], default='all')
+    parser.add_argument('--replay-limit', type=int, default=None, help='Debug-only cap on candidate artifacts. Omit for complete paper runs.')
+    parser.add_argument('--replay-repeat', type=int, default=1, help='Per-candidate replay count. Use 10 for final reproducibility results.')
+    parser.add_argument(
+        '--run-index',
+        type=int,
+        default=1,
+        help='Run identity written into the manifest. Use a new value for pilot/final runs to avoid stale output reuse.',
+    )
+    parser.add_argument('--input-kind', choices=['artifacts', 'corpus', 'all'], default='artifacts')
     args = parser.parse_args()
 
     roots = [Path(x).resolve() if Path(x).is_absolute() else (ROOT_DIR / x).resolve() for x in args.search_root]
@@ -67,7 +74,9 @@ def main() -> int:
             'crate_version': '0.1.0',
             'seeds': [int(x.strip()) for x in args.seeds.split(',') if x.strip()],
             'budget_seconds': args.budget_seconds,
-            'replay_limit': args.replay_limit,
+            **({'replay_limit': args.replay_limit} if args.replay_limit is not None else {}),
+            'replay_repeat': args.replay_repeat,
+            'run_index': args.run_index,
             'input_kind': args.input_kind,
             'include_deps': False,
             'skip_run_cargo_fuzz': False,

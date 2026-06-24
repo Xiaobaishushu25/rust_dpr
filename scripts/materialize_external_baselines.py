@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,13 @@ CONFIRMED_ORACLES = {
     "AddressSanitizerLeak",
     "MiriUndefinedBehavior",
 }
+
+
+def sanitize_path_component(value: str) -> str:
+    value = value.strip().replace("\\", "/")
+    value = value.rsplit("/", 1)[-1]
+    value = re.sub(r"[^A-Za-z0-9_.-]+", "-", value)
+    return value.strip("-") or "candidate"
 
 
 def raw_count(meta: dict[str, Any], key: str) -> int:
@@ -133,7 +141,12 @@ def baseline_classification(kind: str, source_cls: dict[str, Any], meta: dict[st
     raise ValueError(f"unsupported baseline: {kind}")
 
 
-def iter_source_runs(suite: str, tool: str, variant: str | None) -> list[Path]:
+def iter_source_runs(
+    suite: str,
+    tool: str,
+    variant: str | None,
+    run_indices: set[int] | None = None,
+) -> list[Path]:
     suite_dir = RUNS_DIR / suite
     if not suite_dir.exists():
         return []
@@ -144,8 +157,64 @@ def iter_source_runs(suite: str, tool: str, variant: str | None) -> list[Path]:
             continue
         if variant and meta.get("variant") != variant:
             continue
+        if run_indices and int(meta.get("run_index", 1) or 1) not in run_indices:
+            continue
         out.append(meta_path.parent)
     return out
+
+
+def iter_source_campaign_records(
+    suite: str,
+    tool: str,
+    variant: str | None,
+    run_indices: set[int] | None = None,
+) -> list[Path]:
+    suite_dir = RUNS_DIR / suite
+    if not suite_dir.exists():
+        return []
+    out: list[Path] = []
+    for path in sorted(suite_dir.rglob("campaign_record.json")):
+        record = read_json(path)
+        if record.get("tool") != tool:
+            continue
+        if variant and record.get("variant") != variant:
+            continue
+        if run_indices and int(record.get("run_index", 1) or 1) not in run_indices:
+            continue
+        out.append(path)
+    return out
+
+
+def materialize_campaign_record(source_path: Path, out_variant: str) -> Path:
+    record = read_json(source_path)
+    suite = str(record.get("suite") or "generated_harness")
+    case = str(record.get("case") or record.get("crate") or "unknown")
+    tool = str(record.get("tool") or "rulf")
+    harness_id = sanitize_path_component(str(record.get("harness_id") or "target"))
+    seed = record.get("seed", 0)
+    run_index = record.get("run_index", 1)
+    out_dir = (
+        RUNS_DIR
+        / suite
+        / case
+        / tool
+        / out_variant
+        / harness_id
+        / f"seed-{seed}"
+        / f"run-{run_index}"
+    )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "campaign_record.json"
+    new_record = dict(record)
+    new_record.update(
+        {
+            "variant": out_variant,
+            "mode": f"external-{out_variant}-baseline-campaign",
+            "baseline_materialized_from": str(source_path.resolve()),
+        }
+    )
+    write_json(out_path, new_record)
+    return out_path
 
 
 def materialize(source_dir: Path, baseline: str, out_variant: str) -> Path:
@@ -156,7 +225,23 @@ def materialize(source_dir: Path, baseline: str, out_variant: str) -> Path:
     tool = meta.get("tool", "rulf")
     seed = meta.get("seed", 0)
     run_index = meta.get("run_index", 1)
-    out_dir = RUNS_DIR / suite / str(case) / str(tool) / out_variant / f"seed-{seed}" / f"run-{run_index}"
+    harness_id = sanitize_path_component(str(meta.get("harness_id") or "target"))
+    candidate_token = sanitize_path_component(
+        str(meta.get("input_id") or meta.get("candidate_id") or source_dir.name)
+    )
+    out_dir = (
+        RUNS_DIR
+        / str(suite)
+        / str(case)
+        / str(tool)
+        / out_variant
+        / harness_id
+        / f"seed-{seed}"
+        / f"run-{run_index}"
+        / candidate_token
+    )
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Reuse artifacts that do not encode the classifier decision. Copying keeps compute_metrics features such as wDPC available.
@@ -177,8 +262,18 @@ def materialize(source_dir: Path, baseline: str, out_variant: str) -> Path:
             "out_dir": str(out_dir),
         }
     )
+    baseline_cls = baseline_classification(baseline, source_cls, meta)
+    baseline_cls.update(
+        {
+            "candidate_id": meta.get("candidate_id"),
+            "campaign_id": meta.get("campaign_id"),
+            "input_id": meta.get("input_id"),
+            "input_sha256": meta.get("input_sha256"),
+            "replay_stable": meta.get("replay_stable", False),
+        }
+    )
     write_json(out_dir / "run_meta.json", new_meta)
-    write_json(out_dir / "classification.json", baseline_classification(baseline, source_cls, meta))
+    write_json(out_dir / "classification.json", baseline_cls)
     return out_dir
 
 
@@ -189,20 +284,33 @@ def main() -> int:
     parser.add_argument("--source-variant", default=None, help="Filter source variant, e.g. full. Omit to use all variants for the tool.")
     parser.add_argument("--baseline", choices=["crash-only", "panic-only", "oracle-only"], default="crash-only")
     parser.add_argument("--out-variant", default=None, help="Metric variant name to create. Defaults to --baseline.")
+    parser.add_argument(
+        "--run-index",
+        action="append",
+        type=int,
+        default=[],
+        help="Only materialize source runs with these run indices. Repeatable.",
+    )
     args = parser.parse_args()
 
-    source_runs = iter_source_runs(args.suite, args.source_tool, args.source_variant)
-    if not source_runs:
+    run_indices = set(args.run_index) if args.run_index else None
+    source_runs = iter_source_runs(args.suite, args.source_tool, args.source_variant, run_indices)
+    source_campaigns = iter_source_campaign_records(args.suite, args.source_tool, args.source_variant, run_indices)
+    if not source_runs and not source_campaigns:
         print(
-            "[error] no source runs found. Expected run_meta.json under "
+            "[error] no source runs or campaign records found. Expected run_meta.json/campaign_record.json under "
             f"{RUNS_DIR / args.suite} with tool={args.source_tool!r}"
             + (f" and variant={args.source_variant!r}" if args.source_variant else "")
         )
         return 2
 
     out_variant = args.out_variant or args.baseline
+    campaign_records = [materialize_campaign_record(path, out_variant) for path in source_campaigns]
     created = [materialize(run_dir, args.baseline, out_variant) for run_dir in source_runs]
-    print(f"[done] created {len(created)} {args.source_tool}/{out_variant} baseline runs")
+    print(
+        f"[done] created {len(created)} {args.source_tool}/{out_variant} baseline candidate runs "
+        f"and {len(campaign_records)} campaign records"
+    )
     for path in created[:10]:
         print(path)
     if len(created) > 10:

@@ -1,3 +1,4 @@
+suite: micro
 defaults:
   crate_version: 0.1.0
   seeds:
@@ -5,8 +6,7 @@ defaults:
   - 2
   - 3
   budget_seconds: 60
-  replay_limit: 20
-  input_kind: all
+  input_kind: artifacts
   include_deps: false
   skip_run_cargo_fuzz: false
 cases:

@@ -1,0 +1,99 @@
+suite: regression
+defaults:
+  crate_version: 0.1.0
+  seeds:
+  - 1
+  budget_seconds: 30
+  replay_repeat: 1
+  input_kind: artifacts
+  include_deps: false
+  skip_run_cargo_fuzz: false
+cases:
+- crate: rsec_bra_2021_0008_fixed
+  crate_root: benchmarks/regression/rsec_bra_2021_0008_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_bra_2021_0008_vuln
+  crate_root: benchmarks/regression/rsec_bra_2021_0008_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_cdr_2021_0012_fixed
+  crate_root: benchmarks/regression/rsec_cdr_2021_0012_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_cdr_2021_0012_vuln
+  crate_root: benchmarks/regression/rsec_cdr_2021_0012_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_direct_ring_buffer_2025_0105_fixed
+  crate_root: benchmarks/regression/rsec_direct_ring_buffer_2025_0105_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_direct_ring_buffer_2025_0105_vuln
+  crate_root: benchmarks/regression/rsec_direct_ring_buffer_2025_0105_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_endian_trait_2021_0039_vuln
+  crate_root: benchmarks/regression/rsec_endian_trait_2021_0039_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_insert_many_2021_0042_vuln
+  crate_root: benchmarks/regression/rsec_insert_many_2021_0042_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_marc_2021_0014_fixed
+  crate_root: benchmarks/regression/rsec_marc_2021_0014_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_marc_2021_0014_vuln
+  crate_root: benchmarks/regression/rsec_marc_2021_0014_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_ms3d_2021_0016_fixed
+  crate_root: benchmarks/regression/rsec_ms3d_2021_0016_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_ms3d_2021_0016_vuln
+  crate_root: benchmarks/regression/rsec_ms3d_2021_0016_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_qwutils_2021_0018_fixed
+  crate_root: benchmarks/regression/rsec_qwutils_2021_0018_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_qwutils_2021_0018_vuln
+  crate_root: benchmarks/regression/rsec_qwutils_2021_0018_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_scratchpad_2021_0030_fixed
+  crate_root: benchmarks/regression/rsec_scratchpad_2021_0030_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_scratchpad_2021_0030_vuln
+  crate_root: benchmarks/regression/rsec_scratchpad_2021_0030_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_slice_deque_2021_0047_vuln
+  crate_root: benchmarks/regression/rsec_slice_deque_2021_0047_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_stack_dst_2021_0033_fixed
+  crate_root: benchmarks/regression/rsec_stack_dst_2021_0033_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_stack_dst_2021_0033_vuln
+  crate_root: benchmarks/regression/rsec_stack_dst_2021_0033_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_through_2021_0049_vuln
+  crate_root: benchmarks/regression/rsec_through_2021_0049_vuln
+  targets:
+  - fuzz_target_1
+- crate: rsec_toodee_2021_0028_fixed
+  crate_root: benchmarks/regression/rsec_toodee_2021_0028_fixed
+  targets:
+  - fuzz_target_1
+- crate: rsec_toodee_2021_0028_vuln
+  crate_root: benchmarks/regression/rsec_toodee_2021_0028_vuln
+  targets:
+  - fuzz_target_1
